@@ -1,0 +1,126 @@
+version: '3'
+
+vars:
+  BUILD_DIR: build
+  ROS2_WS: .
+
+tasks:
+  default:
+    desc: 'List available tasks'
+    cmds:
+      - task --list
+
+  # ============================================================================
+  # Build Tasks
+  # ============================================================================
+  build:
+    desc: 'Build core C++ library, CLI executable, and unit tests'
+    cmds:
+      - cmake -B {{.BUILD_DIR}} -S . -DCMAKE_BUILD_TYPE=Release
+      - cmake --build {{.BUILD_DIR}} -j $(nproc)
+
+  build:core:
+    desc: 'Build only the libtcamviewer shared library'
+    cmds:
+      - cmake -B {{.BUILD_DIR}} -S .
+      - cmake --build {{.BUILD_DIR}} --target tcamviewer -j $(nproc)
+
+  build:cli:
+    desc: 'Build the standalone tcamviewer CLI tool'
+    cmds:
+      - cmake -B {{.BUILD_DIR}} -S .
+      - cmake --build {{.BUILD_DIR}} --target tcamviewer_cli -j $(nproc)
+
+  build:ros2:
+    desc: 'Build the ROS2 Jazzy C++ package using colcon'
+    deps: [build:core]
+    cmds:
+      - bash -c "source /opt/ros/jazzy/setup.bash && colcon build --paths ros2"
+
+  build:all:
+    desc: 'Build everything (C++, CLI, tests, and ROS2 package)'
+    cmds:
+      - task: build
+      - task: build:ros2
+
+  # ============================================================================
+  # Test Tasks (TDD)
+  # ============================================================================
+  test:
+    desc: 'Run all unit test suites (C++, Go, Python)'
+    cmds:
+      - task: test:cpp
+      - task: test:go
+      - task: test:py
+
+  test:cpp:
+    desc: 'Run C++ GoogleTest unit tests'
+    deps: [build]
+    cmds:
+      - ./{{.BUILD_DIR}}/tests/tcamviewer_tests
+
+  test:go:
+    desc: 'Run Go CGO package unit tests'
+    deps: [build:core]
+    cmds:
+      - go test -v ./pkg/tcamviewer
+
+  test:py:
+    desc: 'Run Python client unit tests'
+    deps: [build:core]
+    cmds:
+      - python3 -m unittest discover -s python/tests
+
+  # ============================================================================
+  # Example / Demo Execution Tasks
+  # ============================================================================
+  example:cli:
+    desc: 'Run CLI test pattern animation (3 seconds at 30 FPS)'
+    deps: [build:cli]
+    cmds:
+      - ./{{.BUILD_DIR}}/tcamviewer test --duration 3 --fps 30
+
+  example:go:
+    desc: 'Run Go client video rendering demo'
+    deps: [build:core]
+    cmds:
+      - go run ./examples/go/main.go
+
+  example:py:
+    desc: 'Run Python client video rendering demo'
+    deps: [build:core]
+    cmds:
+      - python3 ./examples/python/demo.py
+
+  example:ros2-py:
+    desc: 'Run ROS2 Python camera viewer node (subscribes to /camera/image_raw)'
+    deps: [build:core]
+    cmds:
+      - bash -c "source /opt/ros/jazzy/setup.bash && python3 python/ros2_node.py --ros-args -p topic:=/camera/image_raw"
+
+  example:ros2-cpp:
+    desc: 'Run ROS2 C++ native camera viewer node (subscribes to /camera/image_raw)'
+    deps: [build:ros2]
+    cmds:
+      - bash -c "source /opt/ros/jazzy/setup.bash && source install/setup.bash && ros2 run tcamviewer_ros2 tcamviewer_node --ros-args -p topic:=/camera/image_raw"
+
+  # ============================================================================
+  # Installation Tasks
+  # ============================================================================
+  install:
+    desc: 'Install tcamviewer library, headers, and CLI to system'
+    deps: [build]
+    cmds:
+      - sudo cmake --install {{.BUILD_DIR}}
+
+  # ============================================================================
+  # Clean Tasks
+  # ============================================================================
+  clean:
+    desc: 'Remove CMake build directory, ROS2 artifacts, and test logs'
+    cmds:
+      - rm -rf {{.BUILD_DIR}} install/ log/
+      - rm -f pkg/tcamviewer/*.test
+      - find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+      - find . -name "*.pyc" -delete 2>/dev/null || true
+      - echo "Clean completed."

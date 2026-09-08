@@ -189,14 +189,16 @@ std::string Renderer::generateAnsiString(const uint8_t* data, int width, int hei
 void Renderer::renderRgb24(const uint8_t* rgb, int width, int height, int stride) {
     std::string ansi = generateAnsiString(rgb, width, height, stride, false);
     if (!ansi.empty()) {
-        ::write(STDOUT_FILENO, ansi.data(), ansi.size());
+        ssize_t ret = ::write(STDOUT_FILENO, ansi.data(), ansi.size());
+        (void)ret;
     }
 }
 
 void Renderer::renderBgr24(const uint8_t* bgr, int width, int height, int stride) {
     std::string ansi = generateAnsiString(bgr, width, height, stride, true);
     if (!ansi.empty()) {
-        ::write(STDOUT_FILENO, ansi.data(), ansi.size());
+        ssize_t ret = ::write(STDOUT_FILENO, ansi.data(), ansi.size());
+        (void)ret;
     }
 }
 
