@@ -7,6 +7,61 @@
 
 namespace tcamviewer {
 
+namespace {
+
+inline void appendUint(std::string& out, unsigned int val) {
+    char buf[12];
+    char* p = buf + sizeof(buf);
+    do {
+        *--p = static_cast<char>('0' + (val % 10));
+        val /= 10;
+    } while (val > 0);
+    out.append(p, buf + sizeof(buf) - p);
+}
+
+inline void appendUint8(std::string& out, uint8_t v) {
+    if (v >= 100) {
+        out.push_back(static_cast<char>('0' + v / 100));
+        out.push_back(static_cast<char>('0' + (v / 10) % 10));
+        out.push_back(static_cast<char>('0' + v % 10));
+    } else if (v >= 10) {
+        out.push_back(static_cast<char>('0' + v / 10));
+        out.push_back(static_cast<char>('0' + v % 10));
+    } else {
+        out.push_back(static_cast<char>('0' + v));
+    }
+}
+
+inline void appendFgRgb(std::string& out, uint8_t r, uint8_t g, uint8_t b) {
+    out.append("\x1b[38;2;");
+    appendUint8(out, r);
+    out.push_back(';');
+    appendUint8(out, g);
+    out.push_back(';');
+    appendUint8(out, b);
+    out.push_back('m');
+}
+
+inline void appendBgRgb(std::string& out, uint8_t r, uint8_t g, uint8_t b) {
+    out.append("\x1b[48;2;");
+    appendUint8(out, r);
+    out.push_back(';');
+    appendUint8(out, g);
+    out.push_back(';');
+    appendUint8(out, b);
+    out.push_back('m');
+}
+
+inline void appendCursorMove(std::string& out, int col, int row) {
+    out.append("\x1b[");
+    appendUint(out, static_cast<unsigned int>(row));
+    out.push_back(';');
+    appendUint(out, static_cast<unsigned int>(col));
+    out.push_back('H');
+}
+
+} // anonymous namespace
+
 Renderer::Renderer(const RenderConfig& config)
     : config_(config) {
     updateDimensions();
@@ -50,6 +105,7 @@ void Renderer::resize(int cols, int rows) {
 
 void Renderer::invalidateCache() {
     prevGrid_.clear();
+    currGrid_.clear();
     isFirstFrame_ = true;
 }
 
@@ -70,9 +126,13 @@ void Renderer::setKeepAspectRatio(bool enable) {
 
 void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride, bool isBgr,
                              std::vector<CellColor>& outGrid) {
-    outGrid.assign(cols_ * rows_, CellColor{0, 0, 0, 0, 0, 0});
-    if (!src || srcW <= 0 || srcH <= 0) return;
+    size_t totalCells = static_cast<size_t>(cols_) * rows_;
+    if (outGrid.size() != totalCells) {
+        outGrid.resize(totalCells);
+    }
+    std::memset(outGrid.data(), 0, totalCells * sizeof(CellColor));
 
+    if (!src || srcW <= 0 || srcH <= 0) return;
     if (stride <= 0) stride = srcW * 3;
 
     int rot = (config_.rotation % 360 + 360) % 360;
@@ -94,12 +154,10 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
         int fitPixelH = availPixelH;
 
         if (termAspect > srcAspect) {
-            // Terminal is wider than image -> Pillarbox (vertical height is constraint)
             fitPixelH = availPixelH;
             fitPixelW = static_cast<int>(std::round(fitPixelH * srcAspect));
             if (fitPixelW > availPixelW) fitPixelW = availPixelW;
         } else {
-            // Terminal is taller than image -> Letterbox (horizontal width is constraint)
             fitPixelW = availPixelW;
             fitPixelH = static_cast<int>(std::round(fitPixelW / srcAspect));
             if (fitPixelH > availPixelH) fitPixelH = availPixelH;
@@ -117,25 +175,11 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
         offsetRow = (rows_ - renderRows) / 2;
     }
 
-    auto mapCoord = [&](int eff_x, int eff_y, int& px, int& py) {
-        if (rot == 90) {
-            px = eff_y;
-            py = srcH - 1 - eff_x;
-        } else if (rot == 180) {
-            px = srcW - 1 - eff_x;
-            py = srcH - 1 - eff_y;
-        } else if (rot == 270) {
-            px = srcW - 1 - eff_y;
-            py = eff_x;
-        } else {
-            px = eff_x;
-            py = eff_y;
-        }
-        if (px < 0) px = 0;
-        if (px >= srcW) px = srcW - 1;
-        if (py < 0) py = 0;
-        if (py >= srcH) py = srcH - 1;
-    };
+    std::vector<int> eff_x_lut(renderCols);
+    for (int c = 0; c < renderCols; ++c) {
+        int ex = (c * effW) / renderCols;
+        eff_x_lut[c] = (ex >= effW) ? effW - 1 : (ex < 0 ? 0 : ex);
+    }
 
     for (int r = 0; r < renderRows; ++r) {
         int cy = offsetRow + r;
@@ -146,29 +190,40 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
         if (eff_y_top >= effH) eff_y_top = effH - 1;
         if (eff_y_bot >= effH) eff_y_bot = effH - 1;
 
+        CellColor* rowCells = &outGrid[cy * cols_ + offsetCol];
+
         for (int c = 0; c < renderCols; ++c) {
-            int cx = offsetCol + c;
-            if (cx >= cols_) break;
-
-            int eff_x = (c * effW) / renderCols;
-            if (eff_x >= effW) eff_x = effW - 1;
-
+            int eff_x = eff_x_lut[c];
             int px_top = 0, py_top = 0;
-            mapCoord(eff_x, eff_y_top, px_top, py_top);
-
             int px_bot = 0, py_bot = 0;
-            mapCoord(eff_x, eff_y_bot, px_bot, py_bot);
+
+            if (rot == 0) {
+                px_top = eff_x; py_top = eff_y_top;
+                px_bot = eff_x; py_bot = eff_y_bot;
+            } else if (rot == 90) {
+                px_top = eff_y_top; py_top = srcH - 1 - eff_x;
+                px_bot = eff_y_bot; py_bot = srcH - 1 - eff_x;
+            } else if (rot == 180) {
+                px_top = srcW - 1 - eff_x; py_top = srcH - 1 - eff_y_top;
+                px_bot = srcW - 1 - eff_x; py_bot = srcH - 1 - eff_y_bot;
+            } else { // 270
+                px_top = srcW - 1 - eff_y_top; py_top = eff_x;
+                px_bot = srcW - 1 - eff_y_bot; py_bot = eff_x;
+            }
+
+            if (px_top < 0) px_top = 0; else if (px_top >= srcW) px_top = srcW - 1;
+            if (py_top < 0) py_top = 0; else if (py_top >= srcH) py_top = srcH - 1;
+            if (px_bot < 0) px_bot = 0; else if (px_bot >= srcW) px_bot = srcW - 1;
+            if (py_bot < 0) py_bot = 0; else if (py_bot >= srcH) py_bot = srcH - 1;
 
             const uint8_t* ptr_top = src + py_top * stride + px_top * 3;
             const uint8_t* ptr_bot = src + py_bot * stride + px_bot * 3;
 
-            CellColor& cell = outGrid[cy * cols_ + cx];
-
+            CellColor& cell = rowCells[c];
             if (isBgr) {
                 cell.topB = ptr_top[0];
                 cell.topG = ptr_top[1];
                 cell.topR = ptr_top[2];
-
                 cell.botB = ptr_bot[0];
                 cell.botG = ptr_bot[1];
                 cell.botR = ptr_bot[2];
@@ -176,7 +231,6 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
                 cell.topR = ptr_top[0];
                 cell.topG = ptr_top[1];
                 cell.topB = ptr_top[2];
-
                 cell.botR = ptr_bot[0];
                 cell.botG = ptr_bot[1];
                 cell.botB = ptr_bot[2];
@@ -185,62 +239,61 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
     }
 }
 
-std::string Renderer::generateAnsiString(const uint8_t* data, int width, int height, int stride, bool isBgr) {
+void Renderer::generateAnsiInternal(const uint8_t* data, int width, int height, int stride, bool isBgr) {
     if (!data || width <= 0 || height <= 0) {
-        return "";
+        outputBuffer_.clear();
+        return;
     }
 
-    std::vector<CellColor> currGrid;
-    buildCellGrid(data, width, height, stride, isBgr, currGrid);
+    buildCellGrid(data, width, height, stride, isBgr, currGrid_);
 
     outputBuffer_.clear();
-    outputBuffer_.reserve(cols_ * rows_ * 24);
+    outputBuffer_.reserve(static_cast<size_t>(cols_) * rows_ * 24);
 
-    bool canDiff = config_.useDiff && !isFirstFrame_ && (prevGrid_.size() == currGrid.size());
+    bool canDiff = config_.useDiff && !isFirstFrame_ && (prevGrid_.size() == currGrid_.size());
 
     size_t changedCells = 0;
     if (canDiff) {
-        for (size_t i = 0; i < currGrid.size(); ++i) {
-            if (currGrid[i] != prevGrid_[i]) {
+        const CellColor* currPtr = currGrid_.data();
+        const CellColor* prevPtr = prevGrid_.data();
+        size_t total = currGrid_.size();
+        for (size_t i = 0; i < total; ++i) {
+            if (currPtr[i] != prevPtr[i]) {
                 changedCells++;
             }
         }
     }
 
     if (canDiff && changedCells == 0) {
-        // No change, return cursor home and reset style
-        outputBuffer_ += Terminal::cursorHome();
-        return outputBuffer_;
+        outputBuffer_.append(Terminal::cursorHome());
+        return;
     }
 
-    // If diff is enabled and less than 40% of cells changed, update only changed cells
-    if (canDiff && changedCells < (currGrid.size() * 4 / 10)) {
+    if (canDiff && changedCells < (currGrid_.size() * 4 / 10)) {
         int lastFgR = -1, lastFgG = -1, lastFgB = -1;
         int lastBgR = -1, lastBgG = -1, lastBgB = -1;
 
         for (int cy = 0; cy < rows_; ++cy) {
             for (int cx = 0; cx < cols_; ++cx) {
                 int idx = cy * cols_ + cx;
-                if (currGrid[idx] != prevGrid_[idx]) {
-                    // Move cursor directly to cell (1-indexed: row, col)
-                    outputBuffer_ += "\x1b[" + std::to_string(cy + 1) + ";" + std::to_string(cx + 1) + "H";
+                if (currGrid_[idx] != prevGrid_[idx]) {
+                    appendCursorMove(outputBuffer_, cx + 1, cy + 1);
 
-                    const auto& cell = currGrid[idx];
+                    const auto& cell = currGrid_[idx];
                     if (cell.topR != lastFgR || cell.topG != lastFgG || cell.topB != lastFgB) {
-                        outputBuffer_ += Terminal::setFgRgb(cell.topR, cell.topG, cell.topB);
+                        appendFgRgb(outputBuffer_, cell.topR, cell.topG, cell.topB);
                         lastFgR = cell.topR; lastFgG = cell.topG; lastFgB = cell.topB;
                     }
                     if (cell.botR != lastBgR || cell.botG != lastBgG || cell.botB != lastBgB) {
-                        outputBuffer_ += Terminal::setBgRgb(cell.botR, cell.botG, cell.botB);
+                        appendBgRgb(outputBuffer_, cell.botR, cell.botG, cell.botB);
                         lastBgR = cell.botR; lastBgG = cell.botG; lastBgB = cell.botB;
                     }
-                    outputBuffer_ += Terminal::HALF_BLOCK;
+                    outputBuffer_.append(Terminal::HALF_BLOCK);
                 }
             }
         }
     } else {
-        // Full frame sequential render
-        outputBuffer_ += Terminal::cursorHome();
+        outputBuffer_.append(Terminal::cursorHome());
 
         int lastFgR = -1, lastFgG = -1, lastFgB = -1;
         int lastBgR = -1, lastBgG = -1, lastBgB = -1;
@@ -248,43 +301,46 @@ std::string Renderer::generateAnsiString(const uint8_t* data, int width, int hei
         for (int cy = 0; cy < rows_; ++cy) {
             for (int cx = 0; cx < cols_; ++cx) {
                 int idx = cy * cols_ + cx;
-                const auto& cell = currGrid[idx];
+                const auto& cell = currGrid_[idx];
 
                 if (cell.topR != lastFgR || cell.topG != lastFgG || cell.topB != lastFgB) {
-                    outputBuffer_ += Terminal::setFgRgb(cell.topR, cell.topG, cell.topB);
+                    appendFgRgb(outputBuffer_, cell.topR, cell.topG, cell.topB);
                     lastFgR = cell.topR; lastFgG = cell.topG; lastFgB = cell.topB;
                 }
                 if (cell.botR != lastBgR || cell.botG != lastBgG || cell.botB != lastBgB) {
-                    outputBuffer_ += Terminal::setBgRgb(cell.botR, cell.botG, cell.botB);
+                    appendBgRgb(outputBuffer_, cell.botR, cell.botG, cell.botB);
                     lastBgR = cell.botR; lastBgG = cell.botG; lastBgB = cell.botB;
                 }
-                outputBuffer_ += Terminal::HALF_BLOCK;
+                outputBuffer_.append(Terminal::HALF_BLOCK);
             }
             if (cy < rows_ - 1) {
-                outputBuffer_ += "\n";
+                outputBuffer_.push_back('\n');
             }
         }
     }
 
-    outputBuffer_ += Terminal::resetStyle();
-    prevGrid_ = std::move(currGrid);
+    outputBuffer_.append(Terminal::resetStyle());
+    prevGrid_ = currGrid_;
     isFirstFrame_ = false;
+}
 
+std::string Renderer::generateAnsiString(const uint8_t* data, int width, int height, int stride, bool isBgr) {
+    generateAnsiInternal(data, width, height, stride, isBgr);
     return outputBuffer_;
 }
 
 void Renderer::renderRgb24(const uint8_t* rgb, int width, int height, int stride) {
-    std::string ansi = generateAnsiString(rgb, width, height, stride, false);
-    if (!ansi.empty()) {
-        ssize_t ret = ::write(STDOUT_FILENO, ansi.data(), ansi.size());
+    generateAnsiInternal(rgb, width, height, stride, false);
+    if (!outputBuffer_.empty()) {
+        ssize_t ret = ::write(STDOUT_FILENO, outputBuffer_.data(), outputBuffer_.size());
         (void)ret;
     }
 }
 
 void Renderer::renderBgr24(const uint8_t* bgr, int width, int height, int stride) {
-    std::string ansi = generateAnsiString(bgr, width, height, stride, true);
-    if (!ansi.empty()) {
-        ssize_t ret = ::write(STDOUT_FILENO, ansi.data(), ansi.size());
+    generateAnsiInternal(bgr, width, height, stride, true);
+    if (!outputBuffer_.empty()) {
+        ssize_t ret = ::write(STDOUT_FILENO, outputBuffer_.data(), outputBuffer_.size());
         (void)ret;
     }
 }

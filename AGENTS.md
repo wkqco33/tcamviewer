@@ -79,10 +79,16 @@ flowchart TB
 
 ### (2) Dirty-Diff 캐싱 최적화
 매 프레임 터미널 전체 화면을 지우거나 전체 ANSI 코드를 전송하면 초당 수십만 개의 이스케이프 시퀀스가 발생하여 터미널 에뮬레이터 지연 및 깜빡임(flicker)이 발생합니다.
-- `prevGrid_`와 `currGrid`를 셀 단위로 비교합니다.
+- `prevGrid_`와 `currGrid_`를 셀 단위로 비교합니다.
 - **차분이 적을 때 (변경율 < 40%)**: 변경된 셀의 위치로 커서를 직접 이동(`\x1b[Row;ColH`)하여 변경된 블록만 갱신합니다.
 - **차분이 많을 때**: 커서를 홈(`\x1b[H`)으로 옮겨 순차 출력하되, 인접한 셀의 전경색/배경색이 동일하면 중복 ANSI 색상 코드를 생략합니다.
 - 단 한 번의 `write(STDOUT_FILENO, ...)` 호출로 프레임 전체를 출력합니다.
+
+### (3) Zero-Allocation & SIMD 친화적 최적화
+- **64비트 단일 레지스터 셀 비교**: `CellColor`를 `alignas(8)` 8바이트로 정렬하여 단 1회의 64비트 레지스터 비교(`uint64_t`)로 셀 변경 여부를 판별합니다.
+- **Zero-Allocation 10진수 포맷터**: `std::to_string` 및 임시 문자열 힙 할당을 완전히 배제하고, 인라인 10진수 스트리밍(`appendUint8`, `appendFgRgb`, `appendCursorMove`)으로 `outputBuffer_`에 직접 기록합니다.
+- **가로축 좌표 변환 사전계산 (X-LUT)**: 행마다 중복되던 수평 나눗셈 연산을 1D LUT로 사전 계산하여 캐시 히트율을 극대화하고 루프 내 조건 분기를 최소화했습니다.
+- **그리드 버퍼 재사용**: `currGrid_`와 `prevGrid_` 벡터를 멤버 변수로 영구 재사용하여 프레임당 동적 메모리 할당(malloc/free) 오버헤드를 0으로 유지합니다.
 
 ---
 
@@ -91,7 +97,18 @@ flowchart TB
 ```
 tcamviewer/
 ├── CMakeLists.txt                # 메인 C++ CMake 빌드 설정
-├── AGENTS.md                     # 아키텍처 및 개발자 가이드 (본 문서)
+├── Taskfile.yml                  # Taskfile 빌드, 테스트, 실행 자동화 명세
+├── README.md                     # 프로젝트 사용자 및 개발 가이드
+├── AGENTS.md                     # 시스템 상세 아키텍처 및 개발자 가이드 (본 문서)
+├── CONTRIBUTING.md               # 오픈소스 기여 가이드라인
+├── SECURITY.md                   # 보안 취약점 보고 및 지원 정책
+├── LICENSE                       # Apache License 2.0 라이선스 전문
+├── .clang-format                 # C++ 코드 스타일 포맷터 설정 (Google C++ 기반)
+├── .editorconfig                 # 에디터 공통 인덴트 및 개행 설정
+├── .github/
+│   ├── workflows/ci.yml          # GitHub Actions CI 자동화 워크플로우
+│   ├── ISSUE_TEMPLATE/           # 버그 리포트 및 기능 제안 템플릿
+│   └── PULL_REQUEST_TEMPLATE.md  # PR 템플릿
 ├── go.mod                        # Go 모듈 정의
 ├── third_party/
 │   └── wcppcli/                  # wcppcli CLI 프레임워크 (서브모듈)
@@ -103,7 +120,7 @@ tcamviewer/
 │       └── decoder.hpp           # FFmpeg 비디오/스트림 디코더
 ├── src/
 │   ├── terminal.cpp              # Terminal 구현체
-│   ├── renderer.cpp              # Renderer 구현체
+│   ├── renderer.cpp              # Renderer 구현체 (Zero-allocation 최적화)
 │   ├── decoder.cpp               # VideoDecoder 구현체
 │   ├── c_api.cpp                 # C-ABI 구현체
 │   └── cli/
@@ -111,7 +128,7 @@ tcamviewer/
 ├── tests/
 │   ├── CMakeLists.txt            # 테스트 CMake 빌드 설정
 │   ├── test_terminal.cpp         # 터미널 모듈 단위 테스트
-│   ├── test_renderer.cpp         # 렌더러 및 Diff 캐시 단위 테스트
+│   ├── test_renderer.cpp         # 렌더러 & Diff 캐시 & 벤치마크 단위 테스트
 │   ├── test_c_api.cpp            # C-ABI 단위 테스트
 │   └── test_decoder.cpp          # 디코더 단위 테스트
 ├── pkg/
@@ -304,7 +321,7 @@ ctest --output-on-failure
 ./tests/tcamviewer_tests
 ```
 - `TerminalTest`: ANSI 이스케이프 시퀀스 정확성, 터미널 크기 감지
-- `RendererTest`: RGB/BGR 픽셀 매핑, Half-block 출력, Dirty-diff 최적화, 리사이즈
+- `RendererTest`: RGB/BGR 픽셀 매핑, Half-block 출력, Dirty-diff 최적화, 리사이즈, 90/180/270도 회전, 종횡비 자동 유지(Fit/Stretch), 초고속 렌더링 벤치마크(`BenchmarkPerformance`)
 - `CApiTest`: C 인터페이스 수명주기, 버퍼 렌더링, 널 포인터 안전성
 - `DecoderTest`: 잘못된 소스 예외 처리, 비정상 스트림 방어
 
@@ -322,9 +339,14 @@ python3 -m unittest discover -s python/tests
 
 ## 8. 향후 로드맵 (Roadmap)
 
-1. **터미널 그래픽스 프로토콜 확장**:
+자세한 중장기 개발 마일스톤 및 기술 스펙은 [ROADMAP.md](ROADMAP.md)를 참고하세요.
+
+1. **터미널 그래픽스 프로토콜 확장 (v0.2.0)**:
    - Kitty Graphics Protocol 및 Sixel 지원 플러그인 추가 (고화질 터미널에서 픽셀 단위 60fps 풀HD 렌더링)
-2. **IPC 공유 메모리(Shared Memory) 파이프라인**:
-   - 별도 프로세스 간 프레임 공유를 위한 POSIX shm 파이프라인
-3. **OSD (On-Screen Display) 오버레이**:
-   - 터미널 비디오 상단에 실시간 FPS, 해상도, 타임스탬프, 토픽 이름 텍스트 오버레이 기능 추가
+   - 프로토콜 자동 협상(Auto-negotiation) 기능
+2. **IPC 공유 메모리(Shared Memory) 파이프라인 (v0.3.0)**:
+   - 별도 프로세스 간 프레임 공유를 위한 POSIX shm 및 락프리 링 버퍼 파이프라인
+3. **OSD (On-Screen Display) 오버레이 (v0.4.0)**:
+   - 터미널 비디오 상단에 실시간 FPS, 해상도, 타임스탬프, 토픽 이름, AI 바운딩 박스 텍스트 오버레이 기능 추가
+4. **ARM NEON 가속 및 ROS 공식 패키지 인덱싱 (v0.5.0)**:
+   - 라즈베리파이/Jetson NEON SIMD 최적화 및 `rosdistro` 등록

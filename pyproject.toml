@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "cmake>=3.16"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tcamviewer"
+version = "0.1.0"
+description = "High-performance Terminal Video Player & Camera Monitor Library"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "wkqco33" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video :: Display",
+    "Topic :: Software Development :: Libraries",
+]
+keywords = ["terminal", "video", "truecolor", "camera", "ros2", "ansi"]
+
+[project.urls]
+Homepage = "https://github.com/wkqco33/tcamviewer"
+Repository = "https://github.com/wkqco33/tcamviewer.git"
+Issues = "https://github.com/wkqco33/tcamviewer/issues"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 #include "terminal.hpp"
@@ -17,13 +18,16 @@ struct RenderConfig {
     bool keepAspectRatio{true}; // Maintain video aspect ratio with letterboxing/pillarboxing
 };
 
-struct CellColor {
+struct alignas(8) CellColor {
     uint8_t topR{0}, topG{0}, topB{0};
     uint8_t botR{0}, botG{0}, botB{0};
+    uint8_t pad0{0}, pad1{0};
 
     bool operator==(const CellColor& o) const {
-        return topR == o.topR && topG == o.topG && topB == o.topB &&
-               botR == o.botR && botG == o.botG && botB == o.botB;
+        uint64_t a, b;
+        std::memcpy(&a, this, sizeof(uint64_t));
+        std::memcpy(&b, &o, sizeof(uint64_t));
+        return a == b;
     }
     bool operator!=(const CellColor& o) const {
         return !(*this == o);
@@ -64,11 +68,13 @@ private:
     void updateDimensions();
     void buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride, bool isBgr,
                        std::vector<CellColor>& outGrid);
+    void generateAnsiInternal(const uint8_t* data, int width, int height, int stride, bool isBgr);
 
     RenderConfig config_;
     int cols_{80};
     int rows_{24};
     std::vector<CellColor> prevGrid_;
+    std::vector<CellColor> currGrid_;
     std::string outputBuffer_;
     bool isFirstFrame_{true};
 };

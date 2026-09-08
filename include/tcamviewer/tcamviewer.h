@@ -32,24 +32,24 @@ typedef enum {
 } tcam_status_t;
 
 typedef struct {
-    int target_cols;    /* 터미널 가로 문자 수 (0이면 터미널 자동 감지) */
-    int target_rows;    /* 터미널 세로 문자 수 (0이면 터미널 자동 감지) */
-    bool use_diff;      /* dirty-diff 렌더링 활성화 (기본 true) */
-    bool alt_screen;    /* alternate screen buffer 사용 여부 */
-    bool hide_cursor;   /* 커서 숨김 여부 */
-    int rotation;       /* 회전 각도: 0, 90, 180, 270 (시계 방향) */
-    bool keep_aspect_ratio; /* 원본 영상 종횡비 유지 (레터박스/필러박스) */
+    int target_cols;        /* Target terminal columns (0 for auto-detection) */
+    int target_rows;        /* Target terminal rows (0 for auto-detection) */
+    bool use_diff;          /* Enable dirty-diff frame optimization */
+    bool alt_screen;        /* Use alternate screen buffer */
+    bool hide_cursor;       /* Hide cursor during rendering */
+    int rotation;           /* Rotation in degrees: 0, 90, 180, 270 (clockwise) */
+    bool keep_aspect_ratio; /* Maintain aspect ratio with letterbox/pillarbox */
 } tcam_render_config_t;
 
-/* Helper: 시스템 터미널 크기 조회 */
+/* System terminal dimensions */
 TCAM_API tcam_status_t tcam_get_terminal_size(int* out_cols, int* out_rows);
 
-/* Renderer Lifecycle */
+/* Renderer lifecycle */
 TCAM_API tcam_renderer_t* tcam_renderer_create(const tcam_render_config_t* config);
 TCAM_API void tcam_renderer_destroy(tcam_renderer_t* renderer);
 TCAM_API tcam_status_t tcam_renderer_resize(tcam_renderer_t* renderer, int cols, int rows);
 
-/* Frame Rendering */
+/* Frame rendering directly to terminal */
 TCAM_API tcam_status_t tcam_renderer_render_rgb24(tcam_renderer_t* renderer,
                                                  const uint8_t* rgb_data,
                                                  int width,
@@ -62,7 +62,7 @@ TCAM_API tcam_status_t tcam_renderer_render_bgr24(tcam_renderer_t* renderer,
                                                  int height,
                                                  int stride);
 
-/* ANSI 문자열 버퍼로 렌더링 (화면 출력 없이 버퍼로 수신) */
+/* Render to ANSI string buffer without direct terminal output */
 TCAM_API tcam_status_t tcam_renderer_render_to_buffer(tcam_renderer_t* renderer,
                                                      const uint8_t* data,
                                                      int width,
@@ -81,7 +81,7 @@ TCAM_API bool tcam_renderer_get_keep_aspect_ratio(const tcam_renderer_t* rendere
 TCAM_API int tcam_renderer_get_cols(const tcam_renderer_t* renderer);
 TCAM_API int tcam_renderer_get_rows(const tcam_renderer_t* renderer);
 
-/* Decoder Lifecycle */
+/* Decoder lifecycle and frame retrieval */
 TCAM_API tcam_decoder_t* tcam_decoder_create(const char* source, bool loop);
 TCAM_API void tcam_decoder_destroy(tcam_decoder_t* decoder);
 TCAM_API int tcam_decoder_get_rotation(const tcam_decoder_t* decoder);

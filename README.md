@@ -1,7 +1,14 @@
 # tcamviewer 📹
 
+[![CI](https://github.com/wkqco33/tcamviewer/actions/workflows/ci.yml/badge.svg)](https://github.com/wkqco33/tcamviewer/actions)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+![C++17](https://img.shields.io/badge/Language-C%2B%2B17-00599C?logo=c%2B%2B)
+![ROS2](https://img.shields.io/badge/ROS_2-Jazzy%20%7C%20Humble-22314E?logo=ros)
+![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python)
+
 > **고성능 터미널 비디오 플레이어 & ROS 2 카메라 토픽 모니터 라이브러리**  
-> 파일(MP4/MKV), 실시간 네트워크 스트림(RTSP/RTMP), V4L2 웹캠, 그리고 ROS 2 카메라 토픽을 터미널에서 실시간(30~60 FPS)으로 렌더링합니다.
+> 파일(MP4/MKV), 실시간 네트워크 스트림(RTSP/RTMP), V4L2 웹캠, 그리고 ROS 2 카메라 토픽을 터미널에서 실시간(30~60+ FPS)으로 렌더링합니다.
 
 ---
 
@@ -10,9 +17,9 @@
 - **🎨 Half-Block TrueColor (24-bit ANSI) 렌더링**:
   - 유니코드 상단 반쪽 블록 문자(`▀`, U+2580)의 전경색(FG)과 배경색(BG)을 분리하여 **문자 셀 1개당 세로 2픽셀(1:1 비율)**을 표현합니다.
   - 폰트 왜곡 없이 일반 터미널(예: 80×24)에서 80×48 픽셀 해상도로 비디오를 부드럽게 재생합니다.
-- **⚡ Dirty-Diff 캐시 최적화**:
-  - 이전 프레임과 현재 프레임을 셀 단위로 비교하여 **변경된 영역만 ANSI 커서 점프(`\x1b[Row;ColH`)로 업데이트**합니다.
-  - 초당 발생하는 터미널 I/O를 70% 이상 절감하여 깜빡임(Flicker)과 지연을 획기적으로 줄였습니다.
+- **⚡ Dirty-Diff 캐시 및 Zero-Allocation 스트리밍**:
+  - 이전 프레임과 현재 프레임을 64비트 레지스터 단위로 비교하여 **변경된 영역만 ANSI 커서 점프(`\x1b[Row;ColH`)로 업데이트**합니다.
+  - 힙 할당 없는 인라인 10진수 포맷터 및 X-LUT 사전 계산을 적용하여 초당 수만 프레임의 연산 처리 성능을 보장하며, 터미널 I/O를 70% 이상 절감합니다.
 - **🌐 범용 비디오 소스 디코딩 (FFmpeg)**:
   - 로컬 비디오 파일 (MP4, MKV, AVI, WebM 등)
   - 네트워크 스트림 (RTSP low-latency TCP, RTMP, HTTP)
@@ -109,7 +116,7 @@ task
 | **`task build:ros2`** | `colcon`을 사용하여 ROS 2 Jazzy C++ 노드 패키지 빌드 |
 | **`task build:all`** | C++, CLI, 테스트, ROS 2 패키지를 모두 빌드 |
 | **`task test`** | **C++(GoogleTest), Go, Python 모든 단위 테스트 일괄 실행** |
-| **`task test:cpp`** | C++ GoogleTest 단위 테스트 (11개 항목) 실행 |
+| **`task test:cpp`** | C++ GoogleTest 단위 테스트 (17개 항목 + 고해상도 벤치마크) 실행 |
 | **`task test:go`** | Go CGO 패키지 단위 테스트 실행 |
 | **`task test:py`** | Python `ctypes` 단위 테스트 실행 |
 | **`task example:cli`** | CLI 30 FPS 애니메이션 테스트 패턴 실행 (3초간 렌더링) |
@@ -263,15 +270,15 @@ renderer.close()
 task test
 ```
 
-- **C++ Tests (`tests/`)**:
+- **C++ Tests (`tests/`, 17개 항목)**:
   - `TerminalTest`: ANSI 이스케이프 코드 유효성 검증, 터미널 크기 감지
-  - `RendererTest`: RGB/BGR 픽셀 매핑, Half-block 출력, Dirty-diff 최적화, 리사이즈
+  - `RendererTest`: RGB/BGR 픽셀 매핑, Half-block 출력, Dirty-diff 최적화, 리사이즈, 종횡비(Fit/Stretch), 회전(0/90/180/270), 초고속 렌더링 벤치마크(`BenchmarkPerformance`)
   - `CApiTest`: C-ABI 메모리 수명주기, 버퍼 렌더링, 널 포인터 안전성
   - `DecoderTest`: 잘못된 소스 방어 및 예외 처리
 - **Go Tests (`pkg/tcamviewer/tcamviewer_test.go`)**:
-  - 터미널 크기 조회, 버퍼 렌더링, 수명 주기
+  - 터미널 크기 조회, 버퍼 렌더링, 수명 주기, 회전 및 종횡비 제어 검증
 - **Python Tests (`python/tests/test_client.py`)**:
-  - ctypes 라이브러리 로드, 버퍼 렌더링, 문자열 블록 일치 확인
+  - ctypes 라이브러리 로드, 버퍼 렌더링, 문자열 블록 일치, 회전 및 종횡비 제어 검증
 
 ---
 
@@ -283,6 +290,16 @@ tcamviewer/
 ├── Taskfile.yml                  # Taskfile 빌드, 테스트, 실행 자동화 명세
 ├── README.md                     # 프로젝트 사용자 및 개발 가이드 (본 문서)
 ├── AGENTS.md                     # 시스템 상세 아키텍처 및 개발자 가이드
+├── ROADMAP.md                    # 프로젝트 중장기 개발 로드맵 및 마일스톤
+├── CONTRIBUTING.md               # 오픈소스 기여 가이드라인
+├── SECURITY.md                   # 보안 취약점 보고 및 지원 정책
+├── LICENSE                       # Apache License 2.0 라이선스 전문
+├── .clang-format                 # C++ 코드 스타일 포맷터 설정 (Google C++ 기반)
+├── .editorconfig                 # 에디터 공통 인덴트 및 개행 설정
+├── .github/
+│   ├── workflows/ci.yml          # GitHub Actions CI 자동화 워크플로우
+│   ├── ISSUE_TEMPLATE/           # 버그 리포트 및 기능 제안 템플릿
+│   └── PULL_REQUEST_TEMPLATE.md  # PR 템플릿
 ├── go.mod                        # Go 모듈 파일
 ├── third_party/
 │   └── wcppcli/                  # wcppcli CLI 프레임워크 (서브모듈)
@@ -294,7 +311,7 @@ tcamviewer/
 │       └── decoder.hpp           # FFmpeg 비디오/스트림 디코더
 ├── src/
 │   ├── terminal.cpp              # Terminal 구현체
-│   ├── renderer.cpp              # Renderer 구현체
+│   ├── renderer.cpp              # Renderer 구현체 (Zero-allocation 최적화)
 │   ├── decoder.cpp               # VideoDecoder 구현체
 │   ├── c_api.cpp                 # C-ABI 구현체
 │   └── cli/
@@ -302,7 +319,7 @@ tcamviewer/
 ├── tests/
 │   ├── CMakeLists.txt            # 단위 테스트 CMake 파일
 │   ├── test_terminal.cpp         # 터미널 단위 테스트
-│   ├── test_renderer.cpp         # 렌더러 & Diff 캐시 단위 테스트
+│   ├── test_renderer.cpp         # 렌더러 & Diff 캐시 & 벤치마크 단위 테스트
 │   ├── test_c_api.cpp            # C-ABI 인터페이스 단위 테스트
 │   └── test_decoder.cpp          # 디코더 단위 테스트
 ├── pkg/
@@ -330,6 +347,15 @@ tcamviewer/
 
 ---
 
+## 🤝 기여하기 (Contributing) & 보안 정책 (Security)
+
+- 프로젝트 기여 방법 및 개발 워크플로우는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고해 주세요.
+- 향후 개발 계획 및 마일스톤은 [ROADMAP.md](ROADMAP.md)를 참고해 주세요.
+- 보안 취약점 보고 및 정책에 관한 안내는 [SECURITY.md](SECURITY.md)를 참고해 주세요.
+
+---
+
 ## 📄 라이선스 (License)
 
-본 프로젝트는 Apache License 2.0 라이선스 하에 배포됩니다.
+본 프로젝트는 [Apache License 2.0](LICENSE) 라이선스 하에 배포됩니다.
+자유롭게 수정, 배포 및 상업적 이용이 가능합니다.

@@ -192,3 +192,30 @@ TEST(RendererTest, ToggleKeepAspectRatio) {
     renderer.setKeepAspectRatio(false);
     EXPECT_FALSE(renderer.isKeepAspectRatio());
 }
+
+TEST(RendererTest, BenchmarkPerformance) {
+    RenderConfig config;
+    config.targetCols = 160;
+    config.targetRows = 50; // 160x100 resolution (typical full screen terminal)
+    config.useDiff = true;
+
+    Renderer renderer(config);
+
+    // Simulate 100 frames of dynamic content (HD 1280x720 downscaled)
+    std::vector<uint8_t> frame(640 * 360 * 3, 0);
+    auto start = std::chrono::steady_clock::now();
+
+    for (int f = 0; f < 100; ++f) {
+        // Slight perturbation per frame
+        frame[(f * 17) % frame.size()] = static_cast<uint8_t>(f % 256);
+        std::string ansi = renderer.generateAnsiString(frame.data(), 640, 360, 640 * 3, false);
+        EXPECT_FALSE(ansi.empty());
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    // 100 frames on 160x50 terminal should comfortably complete within 1000ms (>100 FPS)
+    EXPECT_LT(elapsedMs, 1000);
+}
+
