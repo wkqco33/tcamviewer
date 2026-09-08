@@ -33,6 +33,7 @@ class CMakeBuild(build_ext):
         cmake_args = [
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={target_dir}",
             f"-DCMAKE_BUILD_TYPE={cfg}",
+            "-DBUILD_TESTING=OFF",
         ]
 
         build_args = [

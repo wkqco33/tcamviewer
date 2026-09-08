@@ -5,3 +5,5 @@ recursive-include include *.h *.hpp
 recursive-include src *.cpp
 recursive-include third_party *
 include CMakeLists.txt
+include .gitmodules
+recursive-include tests *
