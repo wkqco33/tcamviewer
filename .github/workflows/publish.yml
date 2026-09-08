@@ -36,9 +36,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install build wheel
 
-      - name: Build sdist and wheel
+      - name: Build sdist
         run: |
-          python -m build
+          python -m build --sdist
 
       - name: Verify build artifacts
         run: |

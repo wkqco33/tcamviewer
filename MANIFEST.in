@@ -7,3 +7,5 @@ recursive-include third_party *
 include CMakeLists.txt
 include .gitmodules
 recursive-include tests *
+
+global-exclude *.py[cod] __pycache__ .git* .DS_Store
