@@ -58,18 +58,26 @@ bool VideoDecoder::open() {
     close();
 
     AVDictionary* opts = nullptr;
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
     const AVInputFormat* ifmt = nullptr;
+#else
+    AVInputFormat* ifmt = nullptr;
+#endif
 
     // Check for V4L2 device
     if (source_.rfind("/dev/video", 0) == 0) {
-        ifmt = av_find_input_format("v4l2");
+        ifmt = const_cast<decltype(ifmt)>(av_find_input_format("v4l2"));
     } else if (source_.rfind("rtsp://", 0) == 0) {
         av_dict_set(&opts, "rtsp_transport", "tcp", 0);
         av_dict_set(&opts, "fflags", "nobuffer", 0);
         av_dict_set(&opts, "max_delay", "500000", 0);
     }
 
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
     int ret = avformat_open_input(&formatCtx_, source_.c_str(), ifmt, &opts);
+#else
+    int ret = avformat_open_input(&formatCtx_, source_.c_str(), const_cast<AVInputFormat*>(ifmt), &opts);
+#endif
     if (opts) {
         av_dict_free(&opts);
     }
@@ -83,7 +91,11 @@ bool VideoDecoder::open() {
         return false;
     }
 
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
     const AVCodec* decoder = nullptr;
+#else
+    AVCodec* decoder = nullptr;
+#endif
     videoStreamIdx_ = av_find_best_stream(formatCtx_, AVMEDIA_TYPE_VIDEO, -1, -1, &decoder, 0);
     if (videoStreamIdx_ < 0 || !decoder) {
         close();
@@ -127,13 +139,10 @@ bool VideoDecoder::open() {
         int r = std::atoi(rotTag->value);
         info_.rotation = (r % 360 + 360) % 360;
     } else {
-        // Check display matrix side data
-        const AVPacketSideData* sd = av_packet_side_data_get(
-            stream->codecpar->coded_side_data, stream->codecpar->nb_coded_side_data,
-            AV_PKT_DATA_DISPLAYMATRIX
-        );
-        const int32_t* matrix = sd ? reinterpret_cast<const int32_t*>(sd->data) : nullptr;
-        if (matrix) {
+        // Check display matrix side data (compatible with FFmpeg 4.x, 5.x, 6.x)
+        const uint8_t* sd = av_stream_get_side_data(stream, AV_PKT_DATA_DISPLAYMATRIX, nullptr);
+        if (sd) {
+            const int32_t* matrix = reinterpret_cast<const int32_t*>(sd);
             double theta = -av_display_rotation_get(matrix);
             if (!std::isnan(theta)) {
                 int r = static_cast<int>(std::round(theta));
