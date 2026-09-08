@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "tcamviewer/renderer.hpp"
 #include <vector>
+#include <chrono>
 
 using namespace tcamviewer;
 
