@@ -1,0 +1,44 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'docs/wiki/**'
+  workflow_dispatch:
+
+jobs:
+  sync-wiki:
+    name: Sync docs/wiki to GitHub Wiki
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Push to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          WIKI_REPO="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+          TMP_DIR=$(mktemp -d)
+          
+          echo "Attempting to clone wiki repository..."
+          if git clone "$WIKI_REPO" "$TMP_DIR" 2>/dev/null; then
+            echo "Wiki repository found. Syncing documents..."
+            rm -rf "$TMP_DIR"/*
+            cp -r docs/wiki/* "$TMP_DIR"/
+            cd "$TMP_DIR"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .
+            if git diff-index --quiet HEAD --; then
+              echo "No changes to commit in wiki."
+            else
+              git commit -m "docs: sync wiki from docs/wiki [skip ci]"
+              git push origin master
+              echo "Wiki successfully synchronized."
+            fi
+          else
+            echo "::warning ::GitHub Wiki repository is not yet initialized. Please visit https://github.com/${{ github.repository }}/wiki and click 'Create the first page' once to initialize it."
+          fi

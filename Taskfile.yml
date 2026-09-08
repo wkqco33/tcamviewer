@@ -114,6 +114,40 @@ tasks:
       - sudo cmake --install {{.BUILD_DIR}}
 
   # ============================================================================
+  # Documentation & Wiki Tasks
+  # ============================================================================
+  wiki:sync:
+    desc: 'Synchronize docs/wiki/ markdown files to GitHub Wiki git repository'
+    cmds:
+      - |
+        TOKEN=$(gh auth token 2>/dev/null || true)
+        if [ -z "$TOKEN" ]; then
+          echo "gh auth token not found. Please login via 'gh auth login'."
+          exit 1
+        fi
+        WIKI_REPO="https://x-access-token:${TOKEN}@github.com/wkqco33/tcamviewer.wiki.git"
+        TMP_DIR=$(mktemp -d)
+        if git clone "$WIKI_REPO" "$TMP_DIR" 2>/dev/null; then
+          rm -rf "$TMP_DIR"/*
+          cp -r docs/wiki/* "$TMP_DIR"/
+          cd "$TMP_DIR"
+          git add .
+          if git diff-index --quiet HEAD --; then
+            echo "Wiki is already up-to-date."
+          else
+            git commit -m "docs: sync wiki pages from docs/wiki"
+            git push origin master
+            echo "Wiki synchronized successfully."
+          fi
+          rm -rf "$TMP_DIR"
+        else
+          echo "GitHub Wiki is not yet initialized."
+          echo "Please visit https://github.com/wkqco33/tcamviewer/wiki and click 'Create the first page' once, then re-run 'task wiki:sync'."
+          rm -rf "$TMP_DIR"
+          exit 1
+        fi
+
+  # ============================================================================
   # Clean Tasks
   # ============================================================================
   clean:
