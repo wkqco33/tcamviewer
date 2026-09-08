@@ -82,3 +82,26 @@ func TestRendererRotation(t *testing.T) {
 		t.Fatalf("expected rotation 180, got %d", renderer.Rotation())
 	}
 }
+
+func TestRendererKeepAspectRatio(t *testing.T) {
+	renderer, err := NewRenderer(Config{
+		TargetCols:      10,
+		TargetRows:      5,
+		KeepAspectRatio: true,
+	})
+	if err != nil {
+		t.Fatalf("NewRenderer failed: %v", err)
+	}
+	defer renderer.Close()
+
+	if !renderer.KeepAspectRatio() {
+		t.Fatal("expected KeepAspectRatio to be true")
+	}
+
+	if err := renderer.SetKeepAspectRatio(false); err != nil {
+		t.Fatalf("SetKeepAspectRatio failed: %v", err)
+	}
+	if renderer.KeepAspectRatio() {
+		t.Fatal("expected KeepAspectRatio to be false")
+	}
+}

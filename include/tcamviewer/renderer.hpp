@@ -14,6 +14,7 @@ struct RenderConfig {
     bool altScreen{false};
     bool hideCursor{true};
     int rotation{0};     // Rotation in degrees: 0, 90, 180, 270 (Clockwise)
+    bool keepAspectRatio{true}; // Maintain video aspect ratio with letterboxing/pillarboxing
 };
 
 struct CellColor {
@@ -54,6 +55,8 @@ public:
     int getRows() const { return rows_; }
     int getRotation() const { return config_.rotation; }
     void setRotation(int degrees);
+    bool isKeepAspectRatio() const { return config_.keepAspectRatio; }
+    void setKeepAspectRatio(bool enable);
     bool isDiffEnabled() const { return config_.useDiff; }
     void setDiffEnabled(bool enable) { config_.useDiff = enable; }
 

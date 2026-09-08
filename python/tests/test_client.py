@@ -36,5 +36,12 @@ class TestTcamviewerPython(unittest.TestCase):
         self.assertEqual(renderer.rotation, 180)
         renderer.close()
 
+    def test_keep_aspect_ratio(self):
+        renderer = TerminalRenderer(cols=10, rows=5, keep_aspect_ratio=True)
+        self.assertTrue(renderer.keep_aspect_ratio)
+        renderer.set_keep_aspect_ratio(False)
+        self.assertFalse(renderer.keep_aspect_ratio)
+        renderer.close()
+
 if __name__ == "__main__":
     unittest.main()

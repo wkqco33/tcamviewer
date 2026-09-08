@@ -123,7 +123,7 @@ static int runTestPattern(int durationSec, int targetFps) {
     return 0;
 }
 
-static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool altScreen, int targetW, int targetH, int rotateDeg) {
+static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool altScreen, int targetW, int targetH, int rotateDeg, bool stretch) {
     std::signal(SIGINT, sigHandler);
     std::signal(SIGWINCH, sigHandler);
 
@@ -139,7 +139,7 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
     int initialRotation = (rotateDeg >= 0) ? rotateDeg : info.rotation;
     WLog::info("Opened source: " + source + " (" + std::to_string(info.width) + "x" +
                std::to_string(info.height) + " @" + std::to_string(static_cast<int>(info.fps)) + "fps, rotate=" +
-               std::to_string(initialRotation) + "deg)");
+               std::to_string(initialRotation) + "deg, aspect_fit=" + (stretch ? "false" : "true") + ")");
 
     RenderConfig cfg;
     cfg.targetCols = targetW;
@@ -148,6 +148,7 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
     cfg.altScreen = altScreen;
     cfg.hideCursor = true;
     cfg.rotation = initialRotation;
+    cfg.keepAspectRatio = !stretch;
 
     Renderer renderer(cfg);
 
@@ -165,6 +166,8 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
             } else if (ch == 'r' || ch == 'R') {
                 int nextRot = (renderer.getRotation() + 90) % 360;
                 renderer.setRotation(nextRot);
+            } else if (ch == 'a' || ch == 'A') {
+                renderer.setKeepAspectRatio(!renderer.isKeepAspectRatio());
             }
         }
 
@@ -173,11 +176,31 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
             renderer.resize(targetW, targetH);
         }
 
-        int renderW = renderer.getCols();
-        int renderH = renderer.getRows() * 2;
+        int availW = renderer.getCols();
+        int availH = renderer.getRows() * 2;
+        int targetW_dec = availW;
+        int targetH_dec = availH;
+
+        if (renderer.isKeepAspectRatio() && info.width > 0 && info.height > 0) {
+            int rot = renderer.getRotation();
+            int effW = (rot == 90 || rot == 270) ? info.height : info.width;
+            int effH = (rot == 90 || rot == 270) ? info.width : info.height;
+            double aspect = static_cast<double>(effW) / effH;
+            if ((static_cast<double>(availW) / availH) > aspect) {
+                int fitH = availH;
+                int fitW = std::max(1, static_cast<int>(std::round(fitH * aspect)));
+                targetW_dec = (rot == 90 || rot == 270) ? fitH : fitW;
+                targetH_dec = (rot == 90 || rot == 270) ? fitW : fitH;
+            } else {
+                int fitW = availW;
+                int fitH = std::max(1, static_cast<int>(std::round(fitW / aspect)));
+                targetW_dec = (rot == 90 || rot == 270) ? fitH : fitW;
+                targetH_dec = (rot == 90 || rot == 270) ? fitW : fitH;
+            }
+        }
 
         int outW = 0, outH = 0, outStride = 0;
-        const uint8_t* frameData = decoder.readFrame(renderW, renderH, &outW, &outH, &outStride);
+        const uint8_t* frameData = decoder.readFrame(targetW_dec, targetH_dec, &outW, &outH, &outStride);
         if (!frameData) {
             break; // EOF or error
         }
@@ -254,13 +277,20 @@ int main(int argc, char** argv) {
     rotateFlag.value_ptr = &rotateDeg;
     playCmd->add_flag(rotateFlag);
 
+    bool stretch = false;
+    Flag stretchFlag;
+    stretchFlag.name = "stretch";
+    stretchFlag.description = "Stretch video to fill terminal, ignoring aspect ratio";
+    stretchFlag.value_ptr = &stretch;
+    playCmd->add_flag(stretchFlag);
+
     playCmd->handler = [&](const Command& cmd) -> int {
         if (cmd.args.empty()) {
             WLog::error("Please specify a video file, stream URL, or webcam device (e.g. /dev/video0)");
             return 1;
         }
         std::string source = cmd.args[0];
-        return runPlayVideo(source, loop, noDiff, altScreen, targetW, targetH, rotateDeg);
+        return runPlayVideo(source, loop, noDiff, altScreen, targetW, targetH, rotateDeg, stretch);
     };
 
     // Test subcommand

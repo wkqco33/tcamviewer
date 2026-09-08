@@ -135,3 +135,60 @@ TEST(RendererTest, DynamicRotationChange) {
     renderer.setRotation(450); // 450 % 360 = 90
     EXPECT_EQ(renderer.getRotation(), 90);
 }
+
+TEST(RendererTest, AspectRatioLetterbox) {
+    RenderConfig config;
+    config.targetCols = 4;
+    config.targetRows = 4; // 4 cols x 4 rows
+    config.useDiff = false;
+    config.keepAspectRatio = true;
+
+    Renderer renderer(config);
+    EXPECT_TRUE(renderer.isKeepAspectRatio());
+
+    // 4x2 bright red image
+    std::vector<uint8_t> rgb(4 * 2 * 3, 255);
+
+    std::string ansi = renderer.generateAnsiString(rgb.data(), 4, 2, 12, false);
+    EXPECT_FALSE(ansi.empty());
+    // Should render red in content row
+    EXPECT_NE(ansi.find("38;2;255;255;255"), std::string::npos);
+    // Should also render black padding (0;0;0) in letterbox rows
+    EXPECT_NE(ansi.find("38;2;0;0;0"), std::string::npos);
+}
+
+TEST(RendererTest, AspectRatioPillarbox) {
+    RenderConfig config;
+    config.targetCols = 8;
+    config.targetRows = 2; // Wide terminal (8x4 pixels)
+    config.useDiff = false;
+    config.keepAspectRatio = true;
+
+    Renderer renderer(config);
+
+    // 2x4 bright green image (Tall image)
+    std::vector<uint8_t> rgb(2 * 4 * 3, 0);
+    for (size_t i = 1; i < rgb.size(); i += 3) {
+        rgb[i] = 255; // Green
+    }
+
+    std::string ansi = renderer.generateAnsiString(rgb.data(), 2, 4, 6, false);
+    EXPECT_FALSE(ansi.empty());
+    // Should have green content
+    EXPECT_NE(ansi.find("38;2;0;255;0"), std::string::npos);
+    // Should have black pillarbox padding
+    EXPECT_NE(ansi.find("38;2;0;0;0"), std::string::npos);
+}
+
+TEST(RendererTest, ToggleKeepAspectRatio) {
+    RenderConfig config;
+    config.targetCols = 4;
+    config.targetRows = 4;
+    config.keepAspectRatio = true;
+
+    Renderer renderer(config);
+    EXPECT_TRUE(renderer.isKeepAspectRatio());
+
+    renderer.setKeepAspectRatio(false);
+    EXPECT_FALSE(renderer.isKeepAspectRatio());
+}

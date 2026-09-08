@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <cmath>
 
 namespace tcamviewer {
 
@@ -60,9 +61,16 @@ void Renderer::setRotation(int degrees) {
     }
 }
 
+void Renderer::setKeepAspectRatio(bool enable) {
+    if (config_.keepAspectRatio != enable) {
+        config_.keepAspectRatio = enable;
+        invalidateCache();
+    }
+}
+
 void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride, bool isBgr,
                              std::vector<CellColor>& outGrid) {
-    outGrid.resize(cols_ * rows_);
+    outGrid.assign(cols_ * rows_, CellColor{0, 0, 0, 0, 0, 0});
     if (!src || srcW <= 0 || srcH <= 0) return;
 
     if (stride <= 0) stride = srcW * 3;
@@ -71,7 +79,43 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
     int effW = (rot == 90 || rot == 270) ? srcH : srcW;
     int effH = (rot == 90 || rot == 270) ? srcW : srcH;
 
-    int totalPixelH = rows_ * 2;
+    int renderCols = cols_;
+    int renderRows = rows_;
+    int offsetCol = 0;
+    int offsetRow = 0;
+
+    if (config_.keepAspectRatio && effW > 0 && effH > 0) {
+        double srcAspect = static_cast<double>(effW) / effH;
+        int availPixelW = cols_;
+        int availPixelH = rows_ * 2;
+        double termAspect = static_cast<double>(availPixelW) / availPixelH;
+
+        int fitPixelW = availPixelW;
+        int fitPixelH = availPixelH;
+
+        if (termAspect > srcAspect) {
+            // Terminal is wider than image -> Pillarbox (vertical height is constraint)
+            fitPixelH = availPixelH;
+            fitPixelW = static_cast<int>(std::round(fitPixelH * srcAspect));
+            if (fitPixelW > availPixelW) fitPixelW = availPixelW;
+        } else {
+            // Terminal is taller than image -> Letterbox (horizontal width is constraint)
+            fitPixelW = availPixelW;
+            fitPixelH = static_cast<int>(std::round(fitPixelW / srcAspect));
+            if (fitPixelH > availPixelH) fitPixelH = availPixelH;
+        }
+
+        if (fitPixelW < 1) fitPixelW = 1;
+        if (fitPixelH < 1) fitPixelH = 1;
+
+        renderCols = fitPixelW;
+        renderRows = (fitPixelH + 1) / 2;
+        if (renderCols > cols_) renderCols = cols_;
+        if (renderRows > rows_) renderRows = rows_;
+
+        offsetCol = (cols_ - renderCols) / 2;
+        offsetRow = (rows_ - renderRows) / 2;
+    }
 
     auto mapCoord = [&](int eff_x, int eff_y, int& px, int& py) {
         if (rot == 90) {
@@ -93,14 +137,20 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
         if (py >= srcH) py = srcH - 1;
     };
 
-    for (int cy = 0; cy < rows_; ++cy) {
-        int eff_y_top = (cy * 2 * effH) / totalPixelH;
-        int eff_y_bot = ((cy * 2 + 1) * effH) / totalPixelH;
+    for (int r = 0; r < renderRows; ++r) {
+        int cy = offsetRow + r;
+        if (cy >= rows_) break;
+
+        int eff_y_top = (r * 2 * effH) / (renderRows * 2);
+        int eff_y_bot = ((r * 2 + 1) * effH) / (renderRows * 2);
         if (eff_y_top >= effH) eff_y_top = effH - 1;
         if (eff_y_bot >= effH) eff_y_bot = effH - 1;
 
-        for (int cx = 0; cx < cols_; ++cx) {
-            int eff_x = (cx * effW) / cols_;
+        for (int c = 0; c < renderCols; ++c) {
+            int cx = offsetCol + c;
+            if (cx >= cols_) break;
+
+            int eff_x = (c * effW) / renderCols;
             if (eff_x >= effW) eff_x = effW - 1;
 
             int px_top = 0, py_top = 0;

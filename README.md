@@ -147,12 +147,17 @@ task
 # 단축 플래그
 ./build/tcamviewer play /path/to/video.mp4 -r 90
 
-# 6. CLI 옵션 도움말 확인
+# 6. 종횡비 유지 (기본 활성화: 화면 크기에 맞춰 비율 자동 유지 및 중앙 정렬)
+# 비율 무시하고 터미널 전체로 늘리기(Stretch) 옵션:
+./build/tcamviewer play /path/to/video.mp4 --stretch
+
+# 7. CLI 옵션 도움말 확인
 ./build/tcamviewer --help
 ./build/tcamviewer play --help
 ```
 
 > 💡 **재생 중 인터랙티브 키 제어**:
+> - **`a` 또는 `A`**: **종횡비 유지(Fit) ↔ 터미널 채우기(Stretch)** 실시간 토글!
 > - **`r` 또는 `R`**: 재생 중에 누르면 실시간으로 시계 방향 90도 회전 (+90° → +180° → +270° → 0°)
 > - **`q` 또는 `Q`**: 재생 종료
 > - **`Ctrl+C`**: 안전한 터미널 복구 및 종료

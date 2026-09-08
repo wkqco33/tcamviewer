@@ -34,6 +34,7 @@ tcam_renderer_t* tcam_renderer_create(const tcam_render_config_t* config) {
         cfg.altScreen = config->alt_screen;
         cfg.hideCursor = config->hide_cursor;
         cfg.rotation = config->rotation;
+        cfg.keepAspectRatio = config->keep_aspect_ratio;
     }
     return new (std::nothrow) tcam_renderer(cfg);
 }
@@ -104,6 +105,16 @@ tcam_status_t tcam_renderer_set_rotation(tcam_renderer_t* renderer, int rotation
 
 int tcam_renderer_get_rotation(const tcam_renderer_t* renderer) {
     return renderer ? renderer->impl.getRotation() : 0;
+}
+
+tcam_status_t tcam_renderer_set_keep_aspect_ratio(tcam_renderer_t* renderer, bool enable) {
+    if (!renderer) return TCAM_ERR_INVALID_ARG;
+    renderer->impl.setKeepAspectRatio(enable);
+    return TCAM_OK;
+}
+
+bool tcam_renderer_get_keep_aspect_ratio(const tcam_renderer_t* renderer) {
+    return renderer ? renderer->impl.isKeepAspectRatio() : true;
 }
 
 int tcam_renderer_get_cols(const tcam_renderer_t* renderer) {

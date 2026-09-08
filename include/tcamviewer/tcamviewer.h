@@ -38,6 +38,7 @@ typedef struct {
     bool alt_screen;    /* alternate screen buffer 사용 여부 */
     bool hide_cursor;   /* 커서 숨김 여부 */
     int rotation;       /* 회전 각도: 0, 90, 180, 270 (시계 방향) */
+    bool keep_aspect_ratio; /* 원본 영상 종횡비 유지 (레터박스/필러박스) */
 } tcam_render_config_t;
 
 /* Helper: 시스템 터미널 크기 조회 */
@@ -75,6 +76,8 @@ TCAM_API tcam_status_t tcam_renderer_render_to_buffer(tcam_renderer_t* renderer,
 TCAM_API void tcam_renderer_invalidate_cache(tcam_renderer_t* renderer);
 TCAM_API tcam_status_t tcam_renderer_set_rotation(tcam_renderer_t* renderer, int rotation_degrees);
 TCAM_API int tcam_renderer_get_rotation(const tcam_renderer_t* renderer);
+TCAM_API tcam_status_t tcam_renderer_set_keep_aspect_ratio(tcam_renderer_t* renderer, bool enable);
+TCAM_API bool tcam_renderer_get_keep_aspect_ratio(const tcam_renderer_t* renderer);
 TCAM_API int tcam_renderer_get_cols(const tcam_renderer_t* renderer);
 TCAM_API int tcam_renderer_get_rows(const tcam_renderer_t* renderer);
 

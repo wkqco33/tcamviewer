@@ -34,6 +34,7 @@ class _RenderConfig(ctypes.Structure):
         ("alt_screen", ctypes.c_bool),
         ("hide_cursor", ctypes.c_bool),
         ("rotation", ctypes.c_int),
+        ("keep_aspect_ratio", ctypes.c_bool),
     ]
 
 # Function signatures
@@ -54,6 +55,12 @@ _lib.tcam_renderer_set_rotation.restype = ctypes.c_int
 
 _lib.tcam_renderer_get_rotation.argtypes = [ctypes.c_void_p]
 _lib.tcam_renderer_get_rotation.restype = ctypes.c_int
+
+_lib.tcam_renderer_set_keep_aspect_ratio.argtypes = [ctypes.c_void_p, ctypes.c_bool]
+_lib.tcam_renderer_set_keep_aspect_ratio.restype = ctypes.c_int
+
+_lib.tcam_renderer_get_keep_aspect_ratio.argtypes = [ctypes.c_void_p]
+_lib.tcam_renderer_get_keep_aspect_ratio.restype = ctypes.c_bool
 
 _lib.tcam_renderer_render_rgb24.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.tcam_renderer_render_rgb24.restype = ctypes.c_int
@@ -88,14 +95,16 @@ def get_terminal_size() -> Tuple[int, int]:
 
 class TerminalRenderer:
     def __init__(self, cols: int = 0, rows: int = 0, use_diff: bool = True,
-                 alt_screen: bool = False, hide_cursor: bool = True, rotation: int = 0):
+                 alt_screen: bool = False, hide_cursor: bool = True, rotation: int = 0,
+                 keep_aspect_ratio: bool = True):
         cfg = _RenderConfig(
             target_cols=cols,
             target_rows=rows,
             use_diff=use_diff,
             alt_screen=alt_screen,
             hide_cursor=hide_cursor,
-            rotation=rotation
+            rotation=rotation,
+            keep_aspect_ratio=keep_aspect_ratio
         )
         self._ptr = _lib.tcam_renderer_create(ctypes.byref(cfg))
         if not self._ptr:
@@ -123,6 +132,13 @@ class TerminalRenderer:
         if status != 0:
             raise RuntimeError(f"Failed to set rotation, status: {status}")
 
+    def set_keep_aspect_ratio(self, enable: bool):
+        if not self._ptr:
+            raise RuntimeError("Renderer is closed")
+        status = _lib.tcam_renderer_set_keep_aspect_ratio(self._ptr, enable)
+        if status != 0:
+            raise RuntimeError(f"Failed to set keep_aspect_ratio, status: {status}")
+
     def invalidate_cache(self):
         if self._ptr:
             _lib.tcam_renderer_invalidate_cache(self._ptr)
@@ -138,6 +154,10 @@ class TerminalRenderer:
     @property
     def rotation(self) -> int:
         return _lib.tcam_renderer_get_rotation(self._ptr) if self._ptr else 0
+
+    @property
+    def keep_aspect_ratio(self) -> bool:
+        return _lib.tcam_renderer_get_keep_aspect_ratio(self._ptr) if self._ptr else True
 
     def _to_bytes_pointer(self, data):
         if isinstance(data, bytes):

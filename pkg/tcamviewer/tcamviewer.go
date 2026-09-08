@@ -14,12 +14,13 @@ import (
 )
 
 type Config struct {
-	TargetCols int
-	TargetRows int
-	UseDiff    bool
-	AltScreen  bool
-	HideCursor bool
-	Rotation   int // 0, 90, 180, 270 (Clockwise)
+	TargetCols      int
+	TargetRows      int
+	UseDiff         bool
+	AltScreen       bool
+	HideCursor      bool
+	Rotation        int  // 0, 90, 180, 270 (Clockwise)
+	KeepAspectRatio bool // Preserve aspect ratio with letterboxing
 }
 
 type Renderer struct {
@@ -37,12 +38,13 @@ func GetTerminalSize() (cols, rows int, err error) {
 
 func NewRenderer(cfg Config) (*Renderer, error) {
 	cCfg := C.tcam_render_config_t{
-		target_cols: C.int(cfg.TargetCols),
-		target_rows: C.int(cfg.TargetRows),
-		use_diff:    C.bool(cfg.UseDiff),
-		alt_screen:  C.bool(cfg.AltScreen),
-		hide_cursor: C.bool(cfg.HideCursor),
-		rotation:    C.int(cfg.Rotation),
+		target_cols:       C.int(cfg.TargetCols),
+		target_rows:       C.int(cfg.TargetRows),
+		use_diff:          C.bool(cfg.UseDiff),
+		alt_screen:        C.bool(cfg.AltScreen),
+		hide_cursor:       C.bool(cfg.HideCursor),
+		rotation:          C.int(cfg.Rotation),
+		keep_aspect_ratio: C.bool(cfg.KeepAspectRatio),
 	}
 
 	ptr := C.tcam_renderer_create(&cCfg)
@@ -105,6 +107,24 @@ func (r *Renderer) SetRotation(degrees int) error {
 	st := C.tcam_renderer_set_rotation(r.ptr, C.int(degrees))
 	if st != C.TCAM_OK {
 		return fmt.Errorf("set_rotation failed with status %d", int(st))
+	}
+	return nil
+}
+
+func (r *Renderer) KeepAspectRatio() bool {
+	if r == nil || r.ptr == nil {
+		return true
+	}
+	return bool(C.tcam_renderer_get_keep_aspect_ratio(r.ptr))
+}
+
+func (r *Renderer) SetKeepAspectRatio(enable bool) error {
+	if r == nil || r.ptr == nil {
+		return errors.New("renderer is nil or closed")
+	}
+	st := C.tcam_renderer_set_keep_aspect_ratio(r.ptr, C.bool(enable))
+	if st != C.TCAM_OK {
+		return fmt.Errorf("set_keep_aspect_ratio failed with status %d", int(st))
 	}
 	return nil
 }
