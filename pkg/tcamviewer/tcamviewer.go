@@ -19,6 +19,7 @@ type Config struct {
 	UseDiff    bool
 	AltScreen  bool
 	HideCursor bool
+	Rotation   int // 0, 90, 180, 270 (Clockwise)
 }
 
 type Renderer struct {
@@ -41,6 +42,7 @@ func NewRenderer(cfg Config) (*Renderer, error) {
 		use_diff:    C.bool(cfg.UseDiff),
 		alt_screen:  C.bool(cfg.AltScreen),
 		hide_cursor: C.bool(cfg.HideCursor),
+		rotation:    C.int(cfg.Rotation),
 	}
 
 	ptr := C.tcam_renderer_create(&cCfg)
@@ -87,6 +89,24 @@ func (r *Renderer) Rows() int {
 		return 0
 	}
 	return int(C.tcam_renderer_get_rows(r.ptr))
+}
+
+func (r *Renderer) Rotation() int {
+	if r == nil || r.ptr == nil {
+		return 0
+	}
+	return int(C.tcam_renderer_get_rotation(r.ptr))
+}
+
+func (r *Renderer) SetRotation(degrees int) error {
+	if r == nil || r.ptr == nil {
+		return errors.New("renderer is nil or closed")
+	}
+	st := C.tcam_renderer_set_rotation(r.ptr, C.int(degrees))
+	if st != C.TCAM_OK {
+		return fmt.Errorf("set_rotation failed with status %d", int(st))
+	}
+	return nil
 }
 
 func (r *Renderer) RenderRGB(rgb []byte, width, height, stride int) error {
@@ -195,4 +215,11 @@ func (d *Decoder) Info() (width, height int, fps float64, err error) {
 		return 0, 0, 0, fmt.Errorf("failed to get info, status: %d", int(st))
 	}
 	return int(w), int(h), float64(f), nil
+}
+
+func (d *Decoder) Rotation() int {
+	if d == nil || d.ptr == nil {
+		return 0
+	}
+	return int(C.tcam_decoder_get_rotation(d.ptr))
 }

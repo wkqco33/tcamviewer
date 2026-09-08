@@ -9,6 +9,8 @@
 #include <thread>
 #include <cmath>
 #include <iostream>
+#include <termios.h>
+#include <unistd.h>
 #include <vector>
 
 using namespace wcppcli;
@@ -24,6 +26,28 @@ static void sigHandler(int sig) {
         g_resized = 1;
     }
 }
+
+struct TerminalInputGuard {
+    struct termios orig_termios;
+    bool active{false};
+
+    TerminalInputGuard() {
+        if (isatty(STDIN_FILENO)) {
+            tcgetattr(STDIN_FILENO, &orig_termios);
+            struct termios raw = orig_termios;
+            raw.c_lflag &= ~(ICANON | ECHO);
+            raw.c_cc[VMIN] = 0;
+            raw.c_cc[VTIME] = 0;
+            tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+            active = true;
+        }
+    }
+    ~TerminalInputGuard() {
+        if (active) {
+            tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        }
+    }
+};
 
 static int runTestPattern(int durationSec, int targetFps) {
     std::signal(SIGINT, sigHandler);
@@ -99,9 +123,11 @@ static int runTestPattern(int durationSec, int targetFps) {
     return 0;
 }
 
-static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool altScreen, int targetW, int targetH) {
+static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool altScreen, int targetW, int targetH, int rotateDeg) {
     std::signal(SIGINT, sigHandler);
     std::signal(SIGWINCH, sigHandler);
+
+    TerminalInputGuard inputGuard;
 
     VideoDecoder decoder(source, loop);
     if (!decoder.open()) {
@@ -110,8 +136,10 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
     }
 
     const auto& info = decoder.getInfo();
+    int initialRotation = (rotateDeg >= 0) ? rotateDeg : info.rotation;
     WLog::info("Opened source: " + source + " (" + std::to_string(info.width) + "x" +
-               std::to_string(info.height) + " @" + std::to_string(static_cast<int>(info.fps)) + "fps)");
+               std::to_string(info.height) + " @" + std::to_string(static_cast<int>(info.fps)) + "fps, rotate=" +
+               std::to_string(initialRotation) + "deg)");
 
     RenderConfig cfg;
     cfg.targetCols = targetW;
@@ -119,6 +147,7 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
     cfg.useDiff = !noDiff;
     cfg.altScreen = altScreen;
     cfg.hideCursor = true;
+    cfg.rotation = initialRotation;
 
     Renderer renderer(cfg);
 
@@ -127,6 +156,17 @@ static int runPlayVideo(const std::string& source, bool loop, bool noDiff, bool 
 
     while (g_running) {
         auto frameStart = std::chrono::steady_clock::now();
+
+        // Check for interactive keypresses (non-blocking)
+        char ch = 0;
+        if (read(STDIN_FILENO, &ch, 1) > 0) {
+            if (ch == 'q' || ch == 'Q') {
+                break;
+            } else if (ch == 'r' || ch == 'R') {
+                int nextRot = (renderer.getRotation() + 90) % 360;
+                renderer.setRotation(nextRot);
+            }
+        }
 
         if (g_resized) {
             g_resized = 0;
@@ -206,13 +246,21 @@ int main(int argc, char** argv) {
     heightFlag.value_ptr = &targetH;
     playCmd->add_flag(heightFlag);
 
+    int rotateDeg = -1; // -1 = auto detect
+    Flag rotateFlag;
+    rotateFlag.name = "rotate";
+    rotateFlag.shorthand = 'r';
+    rotateFlag.description = "Rotation in degrees: 0, 90, 180, 270 (default: auto from metadata)";
+    rotateFlag.value_ptr = &rotateDeg;
+    playCmd->add_flag(rotateFlag);
+
     playCmd->handler = [&](const Command& cmd) -> int {
         if (cmd.args.empty()) {
             WLog::error("Please specify a video file, stream URL, or webcam device (e.g. /dev/video0)");
             return 1;
         }
         std::string source = cmd.args[0];
-        return runPlayVideo(source, loop, noDiff, altScreen, targetW, targetH);
+        return runPlayVideo(source, loop, noDiff, altScreen, targetW, targetH, rotateDeg);
     };
 
     // Test subcommand

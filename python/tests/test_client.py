@@ -29,5 +29,12 @@ class TestTcamviewerPython(unittest.TestCase):
         self.assertEqual(renderer.rows, 3)
         renderer.close()
 
+    def test_rotation(self):
+        renderer = TerminalRenderer(cols=2, rows=1, rotation=90)
+        self.assertEqual(renderer.rotation, 90)
+        renderer.set_rotation(180)
+        self.assertEqual(renderer.rotation, 180)
+        renderer.close()
+
 if __name__ == "__main__":
     unittest.main()

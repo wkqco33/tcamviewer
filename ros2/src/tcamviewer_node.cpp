@@ -19,6 +19,7 @@ public:
         this->declare_parameter<int>("height", 0);
         this->declare_parameter<bool>("use_diff", true);
         this->declare_parameter<bool>("alt_screen", true);
+        this->declare_parameter<int>("rotation", 0);
 
         std::string topic = this->get_parameter("topic").as_string();
         bool compressed = this->get_parameter("compressed").as_bool();
@@ -26,6 +27,7 @@ public:
         int height = this->get_parameter("height").as_int();
         bool use_diff = this->get_parameter("use_diff").as_bool();
         bool alt_screen = this->get_parameter("alt_screen").as_bool();
+        int rotation = this->get_parameter("rotation").as_int();
 
         tcamviewer::RenderConfig cfg;
         cfg.targetCols = width;
@@ -33,11 +35,12 @@ public:
         cfg.useDiff = use_diff;
         cfg.altScreen = alt_screen;
         cfg.hideCursor = true;
+        cfg.rotation = rotation;
 
         renderer_ = std::make_unique<tcamviewer::Renderer>(cfg);
 
-        RCLCPP_INFO(this->get_logger(), "Listening on topic: '%s' (compressed: %s)",
-                    topic.c_str(), compressed ? "true" : "false");
+        RCLCPP_INFO(this->get_logger(), "Listening on topic: '%s' (compressed: %s, rotation: %d deg)",
+                    topic.c_str(), compressed ? "true" : "false", rotation);
 
         rclcpp::QoS qos(rclcpp::KeepLast(1));
         qos.best_effort();

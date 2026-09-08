@@ -6,9 +6,11 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
+#include <libavutil/display.h>
 }
 
 #include <iostream>
+#include <cmath>
 
 namespace tcamviewer {
 
@@ -117,6 +119,28 @@ bool VideoDecoder::open() {
     info_.width = codecCtx_->width;
     info_.height = codecCtx_->height;
     info_.codecName = decoder->name ? decoder->name : "unknown";
+    info_.rotation = 0;
+
+    // Check metadata rotate tag
+    AVDictionaryEntry* rotTag = av_dict_get(stream->metadata, "rotate", nullptr, 0);
+    if (rotTag && rotTag->value) {
+        int r = std::atoi(rotTag->value);
+        info_.rotation = (r % 360 + 360) % 360;
+    } else {
+        // Check display matrix side data
+        const AVPacketSideData* sd = av_packet_side_data_get(
+            stream->codecpar->coded_side_data, stream->codecpar->nb_coded_side_data,
+            AV_PKT_DATA_DISPLAYMATRIX
+        );
+        const int32_t* matrix = sd ? reinterpret_cast<const int32_t*>(sd->data) : nullptr;
+        if (matrix) {
+            double theta = -av_display_rotation_get(matrix);
+            if (!std::isnan(theta)) {
+                int r = static_cast<int>(std::round(theta));
+                info_.rotation = (r % 360 + 360) % 360;
+            }
+        }
+    }
 
     if (stream->avg_frame_rate.den > 0 && stream->avg_frame_rate.num > 0) {
         info_.fps = av_q2d(stream->avg_frame_rate);

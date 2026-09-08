@@ -36,6 +36,7 @@ class TerminalCameraNode(Node):
         self.declare_parameter("height", 0)
         self.declare_parameter("use_diff", True)
         self.declare_parameter("alt_screen", True)
+        self.declare_parameter("rotation", 0)
 
         topic = self.get_parameter("topic").get_parameter_value().string_value
         is_compressed = self.get_parameter("compressed").get_parameter_value().bool_value
@@ -43,8 +44,9 @@ class TerminalCameraNode(Node):
         height = self.get_parameter("height").get_parameter_value().integer_value
         use_diff = self.get_parameter("use_diff").get_parameter_value().bool_value
         alt_screen = self.get_parameter("alt_screen").get_parameter_value().bool_value
+        rotation = self.get_parameter("rotation").get_parameter_value().integer_value
 
-        self.get_logger().info(f"Subscribing to topic: '{topic}' (compressed={is_compressed})")
+        self.get_logger().info(f"Subscribing to topic: '{topic}' (compressed={is_compressed}, rotation={rotation}deg)")
 
         # Initialize Terminal Renderer
         self.renderer = TerminalRenderer(
@@ -52,7 +54,8 @@ class TerminalCameraNode(Node):
             rows=height,
             use_diff=use_diff,
             alt_screen=alt_screen,
-            hide_cursor=True
+            hide_cursor=True,
+            rotation=rotation
         )
 
         qos = QoSProfile(

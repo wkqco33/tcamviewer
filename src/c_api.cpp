@@ -33,6 +33,7 @@ tcam_renderer_t* tcam_renderer_create(const tcam_render_config_t* config) {
         cfg.useDiff = config->use_diff;
         cfg.altScreen = config->alt_screen;
         cfg.hideCursor = config->hide_cursor;
+        cfg.rotation = config->rotation;
     }
     return new (std::nothrow) tcam_renderer(cfg);
 }
@@ -95,6 +96,16 @@ void tcam_renderer_invalidate_cache(tcam_renderer_t* renderer) {
     if (renderer) renderer->impl.invalidateCache();
 }
 
+tcam_status_t tcam_renderer_set_rotation(tcam_renderer_t* renderer, int rotation_degrees) {
+    if (!renderer) return TCAM_ERR_INVALID_ARG;
+    renderer->impl.setRotation(rotation_degrees);
+    return TCAM_OK;
+}
+
+int tcam_renderer_get_rotation(const tcam_renderer_t* renderer) {
+    return renderer ? renderer->impl.getRotation() : 0;
+}
+
 int tcam_renderer_get_cols(const tcam_renderer_t* renderer) {
     return renderer ? renderer->impl.getCols() : 0;
 }
@@ -115,6 +126,10 @@ tcam_decoder_t* tcam_decoder_create(const char* source, bool loop) {
 
 void tcam_decoder_destroy(tcam_decoder_t* decoder) {
     delete decoder;
+}
+
+int tcam_decoder_get_rotation(const tcam_decoder_t* decoder) {
+    return (decoder && decoder->impl.isOpened()) ? decoder->impl.getInfo().rotation : 0;
 }
 
 tcam_status_t tcam_decoder_get_info(tcam_decoder_t* decoder,

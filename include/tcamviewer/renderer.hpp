@@ -13,6 +13,7 @@ struct RenderConfig {
     bool useDiff{true};  // Frame dirty-diff optimization
     bool altScreen{false};
     bool hideCursor{true};
+    int rotation{0};     // Rotation in degrees: 0, 90, 180, 270 (Clockwise)
 };
 
 struct CellColor {
@@ -51,6 +52,8 @@ public:
     // Accessors
     int getCols() const { return cols_; }
     int getRows() const { return rows_; }
+    int getRotation() const { return config_.rotation; }
+    void setRotation(int degrees);
     bool isDiffEnabled() const { return config_.useDiff; }
     void setDiffEnabled(bool enable) { config_.useDiff = enable; }
 

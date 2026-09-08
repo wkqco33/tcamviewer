@@ -59,3 +59,26 @@ func TestDecoderInvalid(t *testing.T) {
 		t.Fatal("expected error opening non-existent file, got nil")
 	}
 }
+
+func TestRendererRotation(t *testing.T) {
+	renderer, err := NewRenderer(Config{
+		TargetCols: 2,
+		TargetRows: 1,
+		Rotation:   90,
+	})
+	if err != nil {
+		t.Fatalf("NewRenderer failed: %v", err)
+	}
+	defer renderer.Close()
+
+	if renderer.Rotation() != 90 {
+		t.Fatalf("expected rotation 90, got %d", renderer.Rotation())
+	}
+
+	if err := renderer.SetRotation(180); err != nil {
+		t.Fatalf("SetRotation failed: %v", err)
+	}
+	if renderer.Rotation() != 180 {
+		t.Fatalf("expected rotation 180, got %d", renderer.Rotation())
+	}
+}

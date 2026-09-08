@@ -141,10 +141,21 @@ task
 # 4. USB 웹캠 실시간 모니터링
 ./build/tcamviewer play /dev/video0
 
-# 5. CLI 옵션 도움말 확인
+# 5. 회전 보정 (90도/180도/270도 시계방향 회전)
+# 스마트폰 영상이나 카메라가 90도 기울어져 있을 때
+./build/tcamviewer play /path/to/video.mp4 --rotate 90
+# 단축 플래그
+./build/tcamviewer play /path/to/video.mp4 -r 90
+
+# 6. CLI 옵션 도움말 확인
 ./build/tcamviewer --help
 ./build/tcamviewer play --help
 ```
+
+> 💡 **재생 중 인터랙티브 키 제어**:
+> - **`r` 또는 `R`**: 재생 중에 누르면 실시간으로 시계 방향 90도 회전 (+90° → +180° → +270° → 0°)
+> - **`q` 또는 `Q`**: 재생 종료
+> - **`Ctrl+C`**: 안전한 터미널 복구 및 종료
 
 ---
 
@@ -159,8 +170,8 @@ source /opt/ros/jazzy/setup.bash
 # 기본 Raw 이미지 토픽 구독 (/camera/image_raw)
 python3 python/ros2_node.py
 
-# 특정 토픽 지정
-python3 python/ros2_node.py --ros-args -p topic:=/usb_cam/image_raw
+# 특정 토픽 지정 및 90도 회전 보정
+python3 python/ros2_node.py --ros-args -p topic:=/camera/image_raw -p rotation:=90
 
 # 압축(Compressed) 토픽 구독
 python3 python/ros2_node.py --ros-args -p topic:=/camera/image_raw/compressed -p compressed:=true
@@ -173,10 +184,10 @@ python3 python/ros2_node.py --ros-args -p topic:=/camera/image_raw/compressed -p
 # 빌드
 task build:ros2
 
-# 실행
+# 실행 (90도 회전 보정 예시)
 source /opt/ros/jazzy/setup.bash
 source install/setup.bash
-ros2 run tcamviewer_ros2 tcamviewer_node --ros-args -p topic:=/camera/image_raw
+ros2 run tcamviewer_ros2 tcamviewer_node --ros-args -p topic:=/camera/image_raw -p rotation:=90
 ```
 
 ---

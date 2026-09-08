@@ -16,6 +16,7 @@ struct StreamInfo {
     int width{0};
     int height{0};
     double fps{30.0};
+    int rotation{0}; // Detected from video metadata (0, 90, 180, 270)
     std::string codecName;
 };
 

@@ -33,6 +33,7 @@ class _RenderConfig(ctypes.Structure):
         ("use_diff", ctypes.c_bool),
         ("alt_screen", ctypes.c_bool),
         ("hide_cursor", ctypes.c_bool),
+        ("rotation", ctypes.c_int),
     ]
 
 # Function signatures
@@ -47,6 +48,12 @@ _lib.tcam_renderer_destroy.restype = None
 
 _lib.tcam_renderer_resize.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.tcam_renderer_resize.restype = ctypes.c_int
+
+_lib.tcam_renderer_set_rotation.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.tcam_renderer_set_rotation.restype = ctypes.c_int
+
+_lib.tcam_renderer_get_rotation.argtypes = [ctypes.c_void_p]
+_lib.tcam_renderer_get_rotation.restype = ctypes.c_int
 
 _lib.tcam_renderer_render_rgb24.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.tcam_renderer_render_rgb24.restype = ctypes.c_int
@@ -81,13 +88,14 @@ def get_terminal_size() -> Tuple[int, int]:
 
 class TerminalRenderer:
     def __init__(self, cols: int = 0, rows: int = 0, use_diff: bool = True,
-                 alt_screen: bool = False, hide_cursor: bool = True):
+                 alt_screen: bool = False, hide_cursor: bool = True, rotation: int = 0):
         cfg = _RenderConfig(
             target_cols=cols,
             target_rows=rows,
             use_diff=use_diff,
             alt_screen=alt_screen,
-            hide_cursor=hide_cursor
+            hide_cursor=hide_cursor,
+            rotation=rotation
         )
         self._ptr = _lib.tcam_renderer_create(ctypes.byref(cfg))
         if not self._ptr:
@@ -108,6 +116,13 @@ class TerminalRenderer:
         if status != 0:
             raise RuntimeError(f"Failed to resize renderer, status: {status}")
 
+    def set_rotation(self, degrees: int):
+        if not self._ptr:
+            raise RuntimeError("Renderer is closed")
+        status = _lib.tcam_renderer_set_rotation(self._ptr, degrees)
+        if status != 0:
+            raise RuntimeError(f"Failed to set rotation, status: {status}")
+
     def invalidate_cache(self):
         if self._ptr:
             _lib.tcam_renderer_invalidate_cache(self._ptr)
@@ -119,6 +134,10 @@ class TerminalRenderer:
     @property
     def rows(self) -> int:
         return _lib.tcam_renderer_get_rows(self._ptr) if self._ptr else 0
+
+    @property
+    def rotation(self) -> int:
+        return _lib.tcam_renderer_get_rotation(self._ptr) if self._ptr else 0
 
     def _to_bytes_pointer(self, data):
         if isinstance(data, bytes):

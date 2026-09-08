@@ -96,3 +96,42 @@ TEST(RendererTest, ResizeHandling) {
     EXPECT_EQ(renderer.getCols(), 20);
     EXPECT_EQ(renderer.getRows(), 10);
 }
+
+TEST(RendererTest, Rotation90) {
+    RenderConfig config;
+    config.targetCols = 1;
+    config.targetRows = 1;
+    config.useDiff = false;
+    config.rotation = 90;
+
+    Renderer renderer(config);
+    EXPECT_EQ(renderer.getRotation(), 90);
+
+    // 2x1 image: (0,0)=Red (255,0,0), (1,0)=Blue (0,0,255)
+    std::vector<uint8_t> rgb = {
+        255, 0, 0,    0, 0, 255
+    };
+
+    std::string ansi = renderer.generateAnsiString(rgb.data(), 2, 1, 6, false);
+    EXPECT_FALSE(ansi.empty());
+    // Rotated 90 deg clockwise: (0,0) becomes top, (1,0) becomes bottom
+    EXPECT_NE(ansi.find("38;2;255;0;0"), std::string::npos);
+    EXPECT_NE(ansi.find("48;2;0;0;255"), std::string::npos);
+}
+
+TEST(RendererTest, DynamicRotationChange) {
+    RenderConfig config;
+    config.targetCols = 1;
+    config.targetRows = 1;
+    config.useDiff = false;
+    config.rotation = 0;
+
+    Renderer renderer(config);
+    EXPECT_EQ(renderer.getRotation(), 0);
+
+    renderer.setRotation(270);
+    EXPECT_EQ(renderer.getRotation(), 270);
+
+    renderer.setRotation(450); // 450 % 360 = 90
+    EXPECT_EQ(renderer.getRotation(), 90);
+}

@@ -52,6 +52,14 @@ void Renderer::invalidateCache() {
     isFirstFrame_ = true;
 }
 
+void Renderer::setRotation(int degrees) {
+    int rot = (degrees % 360 + 360) % 360;
+    if (config_.rotation != rot) {
+        config_.rotation = rot;
+        invalidateCache();
+    }
+}
+
 void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride, bool isBgr,
                              std::vector<CellColor>& outGrid) {
     outGrid.resize(cols_ * rows_);
@@ -59,40 +67,69 @@ void Renderer::buildCellGrid(const uint8_t* src, int srcW, int srcH, int stride,
 
     if (stride <= 0) stride = srcW * 3;
 
+    int rot = (config_.rotation % 360 + 360) % 360;
+    int effW = (rot == 90 || rot == 270) ? srcH : srcW;
+    int effH = (rot == 90 || rot == 270) ? srcW : srcH;
+
     int totalPixelH = rows_ * 2;
 
-    for (int cy = 0; cy < rows_; ++cy) {
-        int py_top = (cy * 2 * srcH) / totalPixelH;
-        int py_bot = ((cy * 2 + 1) * srcH) / totalPixelH;
-        if (py_top >= srcH) py_top = srcH - 1;
-        if (py_bot >= srcH) py_bot = srcH - 1;
+    auto mapCoord = [&](int eff_x, int eff_y, int& px, int& py) {
+        if (rot == 90) {
+            px = eff_y;
+            py = srcH - 1 - eff_x;
+        } else if (rot == 180) {
+            px = srcW - 1 - eff_x;
+            py = srcH - 1 - eff_y;
+        } else if (rot == 270) {
+            px = srcW - 1 - eff_y;
+            py = eff_x;
+        } else {
+            px = eff_x;
+            py = eff_y;
+        }
+        if (px < 0) px = 0;
+        if (px >= srcW) px = srcW - 1;
+        if (py < 0) py = 0;
+        if (py >= srcH) py = srcH - 1;
+    };
 
-        const uint8_t* row_top_ptr = src + py_top * stride;
-        const uint8_t* row_bot_ptr = src + py_bot * stride;
+    for (int cy = 0; cy < rows_; ++cy) {
+        int eff_y_top = (cy * 2 * effH) / totalPixelH;
+        int eff_y_bot = ((cy * 2 + 1) * effH) / totalPixelH;
+        if (eff_y_top >= effH) eff_y_top = effH - 1;
+        if (eff_y_bot >= effH) eff_y_bot = effH - 1;
 
         for (int cx = 0; cx < cols_; ++cx) {
-            int px = (cx * srcW) / cols_;
-            if (px >= srcW) px = srcW - 1;
+            int eff_x = (cx * effW) / cols_;
+            if (eff_x >= effW) eff_x = effW - 1;
+
+            int px_top = 0, py_top = 0;
+            mapCoord(eff_x, eff_y_top, px_top, py_top);
+
+            int px_bot = 0, py_bot = 0;
+            mapCoord(eff_x, eff_y_bot, px_bot, py_bot);
+
+            const uint8_t* ptr_top = src + py_top * stride + px_top * 3;
+            const uint8_t* ptr_bot = src + py_bot * stride + px_bot * 3;
 
             CellColor& cell = outGrid[cy * cols_ + cx];
-            int p3 = px * 3;
 
             if (isBgr) {
-                cell.topB = row_top_ptr[p3 + 0];
-                cell.topG = row_top_ptr[p3 + 1];
-                cell.topR = row_top_ptr[p3 + 2];
+                cell.topB = ptr_top[0];
+                cell.topG = ptr_top[1];
+                cell.topR = ptr_top[2];
 
-                cell.botB = row_bot_ptr[p3 + 0];
-                cell.botG = row_bot_ptr[p3 + 1];
-                cell.botR = row_bot_ptr[p3 + 2];
+                cell.botB = ptr_bot[0];
+                cell.botG = ptr_bot[1];
+                cell.botR = ptr_bot[2];
             } else {
-                cell.topR = row_top_ptr[p3 + 0];
-                cell.topG = row_top_ptr[p3 + 1];
-                cell.topB = row_top_ptr[p3 + 2];
+                cell.topR = ptr_top[0];
+                cell.topG = ptr_top[1];
+                cell.topB = ptr_top[2];
 
-                cell.botR = row_bot_ptr[p3 + 0];
-                cell.botG = row_bot_ptr[p3 + 1];
-                cell.botB = row_bot_ptr[p3 + 2];
+                cell.botR = ptr_bot[0];
+                cell.botG = ptr_bot[1];
+                cell.botB = ptr_bot[2];
             }
         }
     }

@@ -37,6 +37,7 @@ typedef struct {
     bool use_diff;      /* dirty-diff 렌더링 활성화 (기본 true) */
     bool alt_screen;    /* alternate screen buffer 사용 여부 */
     bool hide_cursor;   /* 커서 숨김 여부 */
+    int rotation;       /* 회전 각도: 0, 90, 180, 270 (시계 방향) */
 } tcam_render_config_t;
 
 /* Helper: 시스템 터미널 크기 조회 */
@@ -72,12 +73,15 @@ TCAM_API tcam_status_t tcam_renderer_render_to_buffer(tcam_renderer_t* renderer,
                                                      size_t* out_len);
 
 TCAM_API void tcam_renderer_invalidate_cache(tcam_renderer_t* renderer);
+TCAM_API tcam_status_t tcam_renderer_set_rotation(tcam_renderer_t* renderer, int rotation_degrees);
+TCAM_API int tcam_renderer_get_rotation(const tcam_renderer_t* renderer);
 TCAM_API int tcam_renderer_get_cols(const tcam_renderer_t* renderer);
 TCAM_API int tcam_renderer_get_rows(const tcam_renderer_t* renderer);
 
 /* Decoder Lifecycle */
 TCAM_API tcam_decoder_t* tcam_decoder_create(const char* source, bool loop);
 TCAM_API void tcam_decoder_destroy(tcam_decoder_t* decoder);
+TCAM_API int tcam_decoder_get_rotation(const tcam_decoder_t* decoder);
 TCAM_API tcam_status_t tcam_decoder_get_info(tcam_decoder_t* decoder,
                                              int* out_width,
                                              int* out_height,
