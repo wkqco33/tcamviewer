@@ -216,6 +216,19 @@ import (
 )
 
 func main() {
+    // 비디오 파일(또는 RTSP/웹캠) 열기
+    decoder, _ := tcamviewer.NewDecoder("video.mp4", false /* loop */)
+    defer decoder.Close()
+
+    w, h, fps, _ := decoder.Info()
+    _ = fps
+
+    // 프레임 읽기 — target 크기로 스케일된 RGB24 반환 (0이면 원본 해상도)
+    frame, err := decoder.ReadFrame(640, 480)
+    if err == nil {
+        // frame.Data: RGB24 (frame.Stride 간격), frame.Width x frame.Height
+    }
+
     cols, rows, _ := tcamviewer.GetTerminalSize()
     renderer, _ := tcamviewer.NewRenderer(tcamviewer.Config{
         TargetCols: cols,
@@ -230,6 +243,18 @@ func main() {
     renderer.RenderRGB(rgbData, width, height, stride)
 }
 ```
+
+주요 바인딩:
+
+| 함수 | 설명 |
+| ---- | ---- |
+| `NewDecoder(source, loop)` | 비디오 소스 열기 (파일/RTSP/V4L2) |
+| `(*Decoder).Info()` | 원본 해상도와 FPS |
+| `(*Decoder).ReadFrame(w, h)` | 다음 프레임을 RGB24로 읽기 (스트림 끝이면 `io.EOF`) |
+| `(*Decoder).Rewind()` | 스트림 처음으로 되감기 |
+| `NewRenderer(Config)` | half-block 렌더러 생성 |
+| `(*Renderer).RenderRGB / RenderBGR` | 터미널에 직접 렌더링 |
+| `(*Renderer).RenderToBuffer` | ANSI 문자열로 렌더링 |
 
 - **예제 실행**:
   ```bash

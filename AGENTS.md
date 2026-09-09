@@ -204,6 +204,20 @@ import (
 )
 
 func main() {
+    // 디코더: 비디오 파일 / RTSP / V4L2 소스 열기
+    decoder, _ := tcamviewer.NewDecoder("video.mp4", false /* loop */)
+    defer decoder.Close()
+
+    // 프레임 읽기 — target 크기로 스케일된 RGB24 반환 (0이면 원본 해상도).
+    // 스트림 끝에는 io.EOF를 반환한다.
+    frame, err := decoder.ReadFrame(640, 480) // frame.Data/Width/Height/Stride
+    if err == nil {
+        _ = frame
+    }
+
+    // 되감기
+    _ = decoder.Rewind()
+
     cols, rows, _ := tcamviewer.GetTerminalSize()
     renderer, _ := tcamviewer.NewRenderer(tcamviewer.Config{
         TargetCols: cols,
@@ -219,7 +233,7 @@ func main() {
 }
 ```
 
-- **Go 단위 테스트 실행**:
+- **Go 단위 테스트 실행** (디코더 테스트는 내장된 순수 Go AVI/MJPEG 픽스처 생성기를 사용하므로 ffmpeg CLI가 없어도 동작한다):
   ```bash
   go test -v ./pkg/tcamviewer
   ```
