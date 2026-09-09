@@ -2,7 +2,7 @@ package tcamviewer
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../include
-#cgo LDFLAGS: -L${SRCDIR}/../../build -ltcamviewer -Wl,-rpath,${SRCDIR}/../../build
+#cgo LDFLAGS: -L${SRCDIR}/../../build -ltcamviewer -lavcodec -lavformat -lswscale -lavutil -lstdc++ -lm -Wl,-rpath,${SRCDIR}/../../build
 #include "tcamviewer/tcamviewer.h"
 #include <stdlib.h>
 */

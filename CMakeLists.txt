@@ -22,6 +22,27 @@ add_library(tcamviewer SHARED
     src/c_api.cpp
 )
 
+# Core Static Library (정적 링크용: 단일 바이너리 배포 등)
+# OUTPUT_NAME을 tcamviewer로 맞춰 build/libtcamviewer.a 를 생성한다.
+add_library(tcamviewer_static STATIC
+    src/terminal.cpp
+    src/renderer.cpp
+    src/decoder.cpp
+    src/c_api.cpp
+)
+set_target_properties(tcamviewer_static PROPERTIES OUTPUT_NAME tcamviewer)
+target_include_directories(tcamviewer_static PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tcamviewer_static PUBLIC
+    PkgConfig::AVCODEC
+    PkgConfig::AVFORMAT
+    PkgConfig::SWSCALE
+    PkgConfig::AVUTIL
+    pthread
+)
+
 target_include_directories(tcamviewer PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -54,8 +75,9 @@ endif()
 
 # Installation
 include(GNUInstallDirs)
-install(TARGETS tcamviewer tcamviewer_cli
+install(TARGETS tcamviewer tcamviewer_static tcamviewer_cli
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
