@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
     Command root;
     root.name = "tcamviewer";
     root.description = "High-performance Terminal Video Player & ROS2 Camera Monitor";
-    root.version = "0.2.2";
+    root.version = "0.2.3";
 
     // Play subcommand
     auto playCmd = std::make_unique<Command>();

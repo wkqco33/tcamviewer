@@ -5,10 +5,15 @@ from typing import Tuple, Optional
 
 # Locate libtcamviewer.so
 def _load_library() -> ctypes.CDLL:
+    package_dir = os.path.dirname(__file__)
     search_paths = [
-        os.path.join(os.path.dirname(__file__), "../../build/libtcamviewer.so"),
-        os.path.join(os.path.dirname(__file__), "../../../build/libtcamviewer.so"),
-        os.path.join(os.path.dirname(__file__), "libtcamviewer.so"),
+        # Installed wheel/package data.
+        os.path.join(package_dir, "libtcamviewer.so"),
+        # Compatibility with wheels built before the nested-output fix.
+        os.path.join(package_dir, "tcamviewer", "libtcamviewer.so"),
+        # Source-tree development builds.
+        os.path.join(package_dir, "../../build/libtcamviewer.so"),
+        os.path.join(package_dir, "../../../build/libtcamviewer.so"),
         "/usr/local/lib/libtcamviewer.so",
         "/usr/lib/libtcamviewer.so",
     ]

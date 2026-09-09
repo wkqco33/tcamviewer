@@ -22,7 +22,7 @@ class CMakeBuild(build_ext):
 
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        target_dir = os.path.join(extdir, "tcamviewer")
+        target_dir = extdir
 
         # Build directory for CMake
         build_temp = os.path.join(self.build_temp, ext.name)
@@ -60,7 +60,7 @@ long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists
 
 setup(
     name="tcamviewer",
-    version="0.2.2",
+    version="0.2.3",
     author="wkqco33",
     description="High-performance Terminal Video Player & Camera Monitor Library",
     long_description=long_description,
