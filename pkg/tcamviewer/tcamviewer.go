@@ -10,6 +10,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"io"
 	"unsafe"
 )
 
@@ -242,4 +243,59 @@ func (d *Decoder) Rotation() int {
 		return 0
 	}
 	return int(C.tcam_decoder_get_rotation(d.ptr))
+}
+
+// Frame는 디코더가 읽어온 단일 프레임이다.
+// Data는 RGB24 픽셀 데이터이며, Stride는 한 줄의 바이트 폭이다
+// (패딩이 없으면 Width*3과 같다).
+type Frame struct {
+	Data   []byte
+	Width  int
+	Height int
+	Stride int
+}
+
+// ReadFrame는 다음 비디오 프레임을 RGB24로 읽어 반환한다.
+// targetWidth나 targetHeight가 0보다 크면 해당 크기로 스케일하고,
+// 0이면 원본 해상도를 유지한다(가로세로 비율은 유지되지 않는다).
+// 프레임 버퍼는 호출마다 새로 할당되므로 다음 ReadFrame 호출과 무관하게
+// 안전하게 보관할 수 있다. 스트림 끝에 도달하면 io.EOF를 반환한다.
+func (d *Decoder) ReadFrame(targetWidth, targetHeight int) (*Frame, error) {
+	if d == nil || d.ptr == nil {
+		return nil, errors.New("decoder is nil or closed")
+	}
+
+	var outRGB *C.uint8_t
+	var w, h, stride C.int
+	st := C.tcam_decoder_read_frame(d.ptr, C.int(targetWidth), C.int(targetHeight), &outRGB, &w, &h, &stride)
+	switch st {
+	case C.TCAM_OK:
+	case C.TCAM_ERR_EOF:
+		return nil, io.EOF
+	default:
+		return nil, fmt.Errorf("read_frame failed with status %d", int(st))
+	}
+
+	size := int(stride) * int(h)
+	data := make([]byte, size)
+	copy(data, unsafe.Slice((*byte)(unsafe.Pointer(outRGB)), size))
+
+	return &Frame{
+		Data:   data,
+		Width:  int(w),
+		Height: int(h),
+		Stride: int(stride),
+	}, nil
+}
+
+// Rewind는 디코딩 위치를 스트림의 처음으로 되돌린다.
+func (d *Decoder) Rewind() error {
+	if d == nil || d.ptr == nil {
+		return errors.New("decoder is nil or closed")
+	}
+	st := C.tcam_decoder_rewind(d.ptr)
+	if st != C.TCAM_OK {
+		return fmt.Errorf("rewind failed with status %d", int(st))
+	}
+	return nil
 }
