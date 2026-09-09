@@ -23,11 +23,14 @@ class CMakeBuild(build_ext):
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
         target_dir = os.path.join(extdir, "tcamviewer")
-        os.makedirs(target_dir, exist_ok=True)
 
         # Build directory for CMake
         build_temp = os.path.join(self.build_temp, ext.name)
-        os.makedirs(build_temp, exist_ok=True)
+        try:
+            os.makedirs(target_dir, exist_ok=True)
+            os.makedirs(build_temp, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError("Unable to create the native build directories") from exc
 
         cfg = "Release"
         cmake_args = [
@@ -57,7 +60,7 @@ long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists
 
 setup(
     name="tcamviewer",
-    version="0.1.0",
+    version="0.2.2",
     author="wkqco33",
     description="High-performance Terminal Video Player & Camera Monitor Library",
     long_description=long_description,
