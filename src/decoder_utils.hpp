@@ -25,7 +25,15 @@ inline const uint8_t* getDisplayMatrixSideData(const AVStream* stream, size_t* s
         *size = sideData->size;
     return sideData->data;
 #else
+#if LIBAVFORMAT_VERSION_MAJOR < 60
+    int legacySize = 0;
+    const uint8_t* sideData = av_stream_get_side_data(stream, AV_PKT_DATA_DISPLAYMATRIX, &legacySize);
+    if (size && legacySize > 0)
+        *size = static_cast<size_t>(legacySize);
+    return sideData;
+#else
     return av_stream_get_side_data(stream, AV_PKT_DATA_DISPLAYMATRIX, size);
+#endif
 #endif
 }
 
