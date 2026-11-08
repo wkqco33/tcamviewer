@@ -1,4 +1,5 @@
 #include "tcamviewer/decoder.hpp"
+#include "decoder_utils.hpp"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -139,9 +140,11 @@ bool VideoDecoder::open() {
         int r = std::atoi(rotTag->value);
         info_.rotation = (r % 360 + 360) % 360;
     } else {
-        // Check display matrix side data (compatible with FFmpeg 4.x, 5.x, 6.x)
-        const uint8_t* sd = av_stream_get_side_data(stream, AV_PKT_DATA_DISPLAYMATRIX, nullptr);
-        if (sd) {
+        // FFmpeg 8 moved stream side data to AVCodecParameters.
+        size_t sideDataSize = 0;
+        const uint8_t* sd =
+            detail::getDisplayMatrixSideData(stream, &sideDataSize);
+        if (sd && sideDataSize >= 9 * sizeof(int32_t)) {
             const int32_t* matrix = reinterpret_cast<const int32_t*>(sd);
             double theta = -av_display_rotation_get(matrix);
             if (!std::isnan(theta)) {
