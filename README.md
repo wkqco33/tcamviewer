@@ -97,6 +97,17 @@ flowchart TB
   - Python 3.10+ (Python 바인딩 사용 시)
   - ROS 2 Jazzy 또는 Humble (ROS 2 노드 실행 시)
 
+### 배포판 호환 빌드 (정적 FFmpeg)
+
+동적 FFmpeg를 링크하면 배포판마다 `libavcodec.so` 메이저가 달라져(20.04/22.04=58, 24.04=60) 한 바이너리로 여러 배포판을 지원할 수 없고, 최신 배포판에서 빌드하면 요구 glibc 버전도 올라간다.
+
+```bash
+# 정적 FFmpeg(기본 6.1.1)를 빌드해 코어에 포함 (→ build-static/, build/ffmpeg-static/)
+task build:core:static
+```
+
+`scripts/build_portable_ffmpeg.sh`는 디코딩에 필요한 컴포넌트만 담은 LGPL 정적 FFmpeg를 빌드한다(`--disable-autodetect`로 시스템 라이브러리 자동 연결 차단). `TCAMVIEWER_FFMPEG_STATIC=ON`과 `TCAMVIEWER_FFMPEG_DIR=<prefix>`를 CMake에 전달하면 해당 정적 라이브러리로 링크한다. 낮은 glibc 베이스라인 바이너리가 필요하면 이 과정을 구 배포판 컨테이너에서 수행한다(tdraw의 `task build:video:portable` 참고).
+
 ---
 
 ## ⚡ Taskfile 명령어 가이드
@@ -112,6 +123,7 @@ task
 | :--- | :--- |
 | **`task build`** | C++ 코어 라이브러리(`libtcamviewer.so`), CLI 실행파일, 테스트 바이너리 빌드 |
 | **`task build:core`** | `libtcamviewer.so` 코어 동적 라이브러리만 빌드 |
+| **`task build:core:static`** | 정적 FFmpeg(`scripts/build_portable_ffmpeg.sh`)를 링크한 `libtcamviewer.so`/`.a` 빌드 (런타임 FFmpeg 불필요) |
 | **`task build:cli`** | 독립형 `tcamviewer` CLI 바이너리만 빌드 |
 | **`task build:ros2`** | `colcon`을 사용하여 ROS 2 Jazzy C++ 노드 패키지 빌드 |
 | **`task build:all`** | C++, CLI, 테스트, ROS 2 패키지를 모두 빌드 |

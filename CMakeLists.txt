@@ -5,11 +5,49 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
-pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat)
-pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
-pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
+option(TCAMVIEWER_FFMPEG_STATIC
+    "정적 FFmpeg(TCAMVIEWER_FFMPEG_DIR)로 링크해 런타임 FFmpeg 의존성을 제거합니다" OFF)
+
+if(TCAMVIEWER_FFMPEG_STATIC)
+    if(NOT TCAMVIEWER_FFMPEG_DIR)
+        message(FATAL_ERROR
+            "TCAMVIEWER_FFMPEG_STATIC=ON 이면 TCAMVIEWER_FFMPEG_DIR에 정적 FFmpeg prefix 경로를 지정해야 합니다")
+    endif()
+    foreach(lib avformat avcodec swscale swresample avutil)
+        if(NOT EXISTS "${TCAMVIEWER_FFMPEG_DIR}/lib/lib${lib}.a")
+            message(FATAL_ERROR "정적 라이브러리 없음: ${TCAMVIEWER_FFMPEG_DIR}/lib/lib${lib}.a")
+        endif()
+    endforeach()
+
+    add_library(tcamviewer_ffmpeg INTERFACE)
+    target_include_directories(tcamviewer_ffmpeg INTERFACE
+        "${TCAMVIEWER_FFMPEG_DIR}/include")
+    # 링크 순서가 중요하다: 상위 라이브러리가 하위 라이브러리를 참조한다.
+    target_link_libraries(tcamviewer_ffmpeg INTERFACE
+        "${TCAMVIEWER_FFMPEG_DIR}/lib/libavformat.a"
+        "${TCAMVIEWER_FFMPEG_DIR}/lib/libavcodec.a"
+        "${TCAMVIEWER_FFMPEG_DIR}/lib/libswscale.a"
+        "${TCAMVIEWER_FFMPEG_DIR}/lib/libswresample.a"
+        "${TCAMVIEWER_FFMPEG_DIR}/lib/libavutil.a"
+        m pthread
+    )
+    message(STATUS "FFmpeg: static (${TCAMVIEWER_FFMPEG_DIR})")
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
+    pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat)
+    pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
+    pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
+
+    add_library(tcamviewer_ffmpeg INTERFACE)
+    target_link_libraries(tcamviewer_ffmpeg INTERFACE
+        PkgConfig::AVCODEC
+        PkgConfig::AVFORMAT
+        PkgConfig::SWSCALE
+        PkgConfig::AVUTIL
+        pthread
+    )
+endif()
 
 # Include wcppcli CLI framework
 add_subdirectory(third_party/wcppcli)
@@ -36,11 +74,7 @@ target_include_directories(tcamviewer_static PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(tcamviewer_static PUBLIC
-    PkgConfig::AVCODEC
-    PkgConfig::AVFORMAT
-    PkgConfig::SWSCALE
-    PkgConfig::AVUTIL
-    pthread
+    tcamviewer_ffmpeg
 )
 
 target_include_directories(tcamviewer PUBLIC
@@ -49,11 +83,7 @@ target_include_directories(tcamviewer PUBLIC
 )
 
 target_link_libraries(tcamviewer PUBLIC
-    PkgConfig::AVCODEC
-    PkgConfig::AVFORMAT
-    PkgConfig::SWSCALE
-    PkgConfig::AVUTIL
-    pthread
+    tcamviewer_ffmpeg
 )
 
 target_compile_definitions(tcamviewer PRIVATE TCAMVIEWER_EXPORT)
